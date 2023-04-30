@@ -13,6 +13,7 @@ token_decorate = Decorate()
 
 
 
+
 class EncryptingService:
     def __init__(self):
         return
@@ -167,10 +168,12 @@ async def refresh_validation(refresh_token):
         result = await Refresh().validate_refresh_token(refresh_token)
 
         if result('code') == 200:
+            return True
+        else:
             return jsonify(
                 {
-                    'code': 200,
-                    'message': 'Токен действителен.'
+                    'code': 402,
+                    'message': 'Токен недействителен'
                 }
             )
         
@@ -194,12 +197,20 @@ async def access_validation(access_token):
         result = await Access().validate_access_token(access_token)
 
         if result('code') == 200:
+            return True
+        else:
             return jsonify(
                 {
-                    'code': 200,
-                    'message': 'Токен действителен.'
+                    'code': 402,
+                    'message': 'Токен недействителен'
                 }
             )
         
     except:
         raise TokenValidationError('Ошибка в декораторе или функции проверки данных токена')
+
+
+@token_decorate.token_service_decorator
+async def decrypt_and_get_email(token):
+    return await EncryptingService().email_from_token(token)
+

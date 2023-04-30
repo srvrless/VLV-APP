@@ -83,5 +83,13 @@ class SSession:
         put_data_tofile(data)
         return True
     
+    async def check_logged(self, email):
+        data = get_data_fromfile()
+
+        if data['catalog'][email]['logged_in']:
+            return True
+        else: return False
+
+    
     
     

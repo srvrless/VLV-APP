@@ -2,10 +2,56 @@ from quart import Quart
 from quart import jsonify
 from quart import request
 from quart import render_template
+from session_factory import SSession
+from token_factory import refresh_validation, access_validation, decrypt_and_get_email
 
 
 
 app = Quart(__name__)
+ssession = SSession()
+
+
+# TODO: Вставить в программный код места, где создаются новые сессии и они управляются
+# TODO: Сделать автоматическую выдачу токена при проверке рефреш, если рефреш еще действует (сейчас в ручном)
+# TODO: В базу данных каждоо пользователя добавить поле "История заказов".
+    ##? Добавить отдельный параметр вывода заказов, которые были когда-либо связаны с профилем (отдельный счетчик)
+    ##? Вставить в программный код все, что касается истории заказов пользователя
+
+# TODO: Каждому пользователю добавить поле, в котором будет содердаться информация о текущих его заказах.
+    # Это должна быть отдельная таблица, в которой все это будет обрабатываться. Чтобы всю 
+    # информацию можно было бы оттуда брать. И выдвать на экране
+
+
+
+
+
+
+async def process(access_token, refresh_token):
+    # info = await request.get_json()
+    result = await access_validation(access_token) # 
+
+    if result is not True:
+        result = await refresh_validation(refresh_token)
+
+        if result is not True:
+            return result
+            
+        else: 
+            return jsonify(
+                {
+                    'code': 201,
+                    'message': 'Рефреш-токен действителен. Необходимо обновить access_token'
+                }
+            )
+        
+    elif result:
+        return True
+    
+    else:
+        return False
+
+
+
 
 
 ### Start app. Configuration parameters. ###
@@ -66,12 +112,23 @@ def get_banners():
 
 
 
-### Main Routs ###
+### Авторизация ###
+# ? Алгоримт входа пользователя в приложение. Проверка его токенов. 
 
 
-app.route('/login', methods=['GET', 'POST'])
-def login():
-    return()
+app.route('login', methods=['GET', 'POST']) # ? Функция входа, а также принудительного входа, когда аксесс заканчивает свое действие. 
+async def login(): # Авторизация в приложении пользователя. 
+    if request.method == 'POST':
+        #! Проверка по БД и произведение всех необходимых действий
+        pass
+
+    if request.method == 'GET':
+        return jsonify(400) # Выдавать ошибку, если приходит такой запрос
+    return jsonify(200)
+
+
+
+### Конец авторизации пользователя ###
 
 
 
@@ -143,24 +200,75 @@ def create_access_by_email(): # GET
 ### Конец сервисных методов ###
 
 
+### Личный профиль пользователя. Пользовательский сценарий (авторизация) ###
+#? Все, что связано с профилем пользователя, выдача информации / редактирование информации
 
-### Авторизация ###
-# ? Алгоримт входа пользователя в приложение. Проверка его токенов. 
 
-
-app.route('login', methods=['GET', 'POST']) # ? Функция входа, а также принудительного входа, когда аксесс заканчивает свое действие. 
-async def login(): # Авторизация в приложении пользователя. 
-    if request.method == 'POST':
-        #! Проверка по БД и произведение всех необходимых действий
-        pass
+@app.route('/check_logged_in', methods=['GET', 'POST'])
+async def check_logged_in():
 
     if request.method == 'GET':
-        return jsonify(400) # Выдавать ошибку, если приходит такой запрос
-    return jsonify(200)
+        return jsonify(
+            {
+                'code': 200,
+                'message': 'Для использования данного метода запрос должен быть POST. Метод возвращает флаг авторизации пользователя в системе'
+            }
+        )
+    
+    elif request.method == 'POST':
+
+        access_token = request.headers.get('access_token')
+        refresh_token = request.headers.get('refresh_token')
+
+        result = await process(access_token, refresh_token)
+
+        if result:
+
+            email = await decrypt_and_get_email(refresh_token)
+            status = await ssession.check_logged(email)
+
+            if status:
+                return jsonify(
+                    {
+                        'code': 200,
+                        'message': 'Пользователь авторизован'
+                    }
+                )
+            
+            else:
+                return jsonify(
+                    {
+                        'code': 202,
+                        'message': 'Пользователь не авторизован'
+                    }
+                )
+
+        else: 
+            return jsonify(
+                {
+                    'code': 400,
+                    'message': 'Доступ заблокирован. Необходимо выяснить причину и исправить это'
+                }
+            )
+
+        
+
+### Конец методов работы с профилем пользователя ###
 
 
 
-### Конец авторизации пользователя ###
+### Дополнительные методы ###
+#? Рекомендации по уходу, о нас, магазины и тд. Все, что может быть дополнительным
+
+
+
+
+        
+
+
+
+
+
 
 
 

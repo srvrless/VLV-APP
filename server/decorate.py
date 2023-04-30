@@ -18,6 +18,11 @@ class Decorate:
             func()
         return check_access_validation
     
+    def token_service_decorator(self, func):
+        def get_email_from_token():
+            func()
+        return get_email_from_token
+    
     def open_file_decorator(self, func):
         def open_file():
             func()
