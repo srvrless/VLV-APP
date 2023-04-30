@@ -1,9 +1,15 @@
 from datetime import datetime, timedelta
-from server_exceptions import EmptyDataError
+from server_exceptions import EmptyDataError, TokenValidationError
 import json
 from cryptography.fernet import Fernet
 import asyncio
+from decorate import Decorate
+from quart import jsonify
 # Production of tokens for users
+
+
+
+token_decorate = Decorate()
 
 
 
@@ -146,8 +152,54 @@ class Refresh(Access):
             return asyncio.run(self.create_access_token(email))
     
     
-
-
-
+@token_decorate.refresh_decorator
+async def refresh_validation(refresh_token):
+    try:
+        # refresh_token = request.headers['refresh_token']
+        if refresh_token is None or refresh_token == '':
+            return jsonify(
+                {
+                    'code': 402,
+                    'message': 'Refresh token отсутствует. Запрос отклонен. Необходимо скорректировать запрос на сервер'
+                }
+            )
     
+        result = await Refresh().validate_refresh_token(refresh_token)
+
+        if result('code') == 200:
+            return jsonify(
+                {
+                    'code': 200,
+                    'message': 'Токен действителен.'
+                }
+            )
+        
+    except:
+        raise TokenValidationError('Ошибка в декораторе или функции проверки данных токена')
     
+
+
+@token_decorate.access_decorator
+async def access_validation(access_token):
+    try:
+        # refresh_token = request.headers['refresh_token']
+        if access_token is None or access_token == '':
+            return jsonify(
+                {
+                    'code': 402,
+                    'message': 'Access token отсутствует. Запрос отклонен. Необходимо скорректировать запрос на сервер'
+                }
+            )
+    
+        result = await Access().validate_access_token(access_token)
+
+        if result('code') == 200:
+            return jsonify(
+                {
+                    'code': 200,
+                    'message': 'Токен действителен.'
+                }
+            )
+        
+    except:
+        raise TokenValidationError('Ошибка в декораторе или функции проверки данных токена')
