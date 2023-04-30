@@ -2,8 +2,8 @@ from quart import Quart
 from quart import jsonify
 from quart import request
 from quart import render_template
-from session_factory import SSession
-from token_factory import refresh_validation, access_validation, decrypt_and_get_email
+from server_helpers.session_factory import SSession
+from server_helpers.token_factory import access_validation, refresh_validation, decrypt_and_get_email
 
 
 
@@ -20,6 +20,20 @@ ssession = SSession()
 # TODO: Каждому пользователю добавить поле, в котором будет содердаться информация о текущих его заказах.
     # Это должна быть отдельная таблица, в которой все это будет обрабатываться. Чтобы всю 
     # информацию можно было бы оттуда брать. И выдвать на экране
+
+
+#TODO: сделать метод смены электронной почты с подтверждением через письмо также, как и было при регистрации
+#TODO: сделать метод подтверждения номера телефона через смс, как и положено ----> подключиь для этого сторонний смс сервис
+#TODO: Сделать метод удаления профиля
+#TODO: написать функцию смены пароля и подтверждение данного действия через смс.
+
+
+
+# Далее
+
+
+
+#TODO: Сделать таблицу отдельную, в которой будет список магазинов
 
 
 
@@ -185,14 +199,14 @@ def create_access_by_refresh(): # GET
 
 # ! Сервисный метод. Не использовать в общем алгоритме. Вызывается при возникновении ошибок, либо при принудительном игнорировании алгоритма
 app.route('/create_refresh_by_email', methods=['GET', 'POST']) #? Отдельный метод для создания рефреш-токена
-def create_refresh_by_email(): # GET 
+async def create_refresh_by_email(): # GET 
     #TODO Передавать параметром email для создания нового рефреша
     return jsonify(200)
 
 
 # ! Сервисный метод. Не использовать в общем алгоритме. Вызывается при возникновении ошибок, либо при принудительном игнорировании алгоритма
 app.route('/create_access_by_email', methods=['GET', 'POST']) #? Отдельный метод для создания аксесс-токена
-def create_access_by_email(): # GET 
+async def create_access_by_email(): # GET 
     #TODO Передавать параметром email для создания нового аксесса
     return jsonify(200)
 
@@ -250,6 +264,60 @@ async def check_logged_in():
                     'message': 'Доступ заблокирован. Необходимо выяснить причину и исправить это'
                 }
             )
+
+@app.route('/personal_information', methods=['GET', 'POST']) #? модуль смены / обновления пользовательской персональной информации (основной)
+async def personal_information():
+
+    if request.method == 'GET':
+
+        info = await request.get_json() # Достается персональная информация по email, который присылается параметром
+
+        return jsonify(
+            {
+                'code': 200,
+                'catalog': 'Information' #! Добавить вывод из БД личной информации пользователя
+            }
+        )
+    
+    elif request.method == 'POST':
+
+        access_token = request.headers.get('access_token')
+        refresh_token = request.headers.get('refresh_token')
+
+        result = await process(access_token, refresh_token)
+
+        if result:
+
+            name = request.headers.get('name')
+            secod_name = request.headers.get('second_name')
+            phone = request.headers.get('phone')
+
+            email = await decrypt_and_get_email(refresh_token)
+
+            '''
+            Здесь код добавления всей этой информации в БД пользователя,
+            то есть обновление его информации
+            '''
+        
+        return jsonify(
+            {
+                'code': 200,
+                'message': 'Информация пользователя успешно обновлена'
+            }
+        )
+    
+
+@app.route('/extra_personal_information', methods=['GET', 'POST']) #? модуль добавления информации об адресе и о доставке
+async def extra_personal_information():
+    #! Адрес доставки. Для добавления адреса доставки нужно обработать весь список городов, выдать самые релевантные варианты
+    return
+
+        
+
+        
+
+        
+
 
         
 
