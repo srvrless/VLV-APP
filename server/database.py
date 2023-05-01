@@ -2,13 +2,14 @@
 import asyncpg
 from cryptography.fernet import Fernet
 import json
+from server_helpers.token_factory import EncryptingService
 
 
 class Database:
     
     def __init__(self):
         self.host = 'localhost'
-        self.db_name = 'vlv'
+        self.db_name = 'vlv_shop'
         self. dbuser = 'postgres'
         self.password = 'admin'
         return
@@ -24,8 +25,7 @@ class Database:
         except Exception as e:
             print(e, 'Ошибка в процессе получения данных о зарегистрированных пользователях. Регистрация продолжается')
             
-        password = self.encrypt_phrase(password)
-        if billings is None: billings = ''
+        password = await EncryptingService().encrypt_string(password)
         email_accept = 'Unverified'
         phone_accept = 'Unverified'
 
@@ -72,7 +72,7 @@ class Database:
         
         # TODO Заменить на блок отлавливания ошибок
 
-        if password == self.decrypt_phrase(values[0]['password']):
+        if password == await EncryptingService().decrypt_string(values[0]['password']):
             return True
         else:
             return False #result = json.dumps(values).replace('\\', '')

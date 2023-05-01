@@ -305,7 +305,7 @@ async def accept_recovery():
 
 # То есть, если нажимают, летит запрос и почта подтвержается
 
-app.route('email_code', methods=['GET', 'POST']) # Отправка кода на указанный email
+app.route('/email_code', methods=['GET', 'POST']) # Отправка кода на указанный email
 def email_code(): #! Сделать авторизацию через email - страницу. Получение КОДА !!!! Нужно вводить код
     return jsonify(200)
 
@@ -322,7 +322,7 @@ def email_confirm():
 
 
 
-app.route('registration', methods=['POST'])
+@app.route('/registration', methods=['POST'])
 async def registration(): # Ввод личных данных при регистрации в приложении и запись данных в БД 
     if request.method == 'POST':
 
@@ -330,20 +330,22 @@ async def registration(): # Ввод личных данных при регис
         if not all(k in info for k in ('username', 'email', 'password', 'city')):
             return jsonify({'code': 400, 'message': 'Не хватает аргументов'})
         
-        if await database.registration(info['username'], ['email'], ['password'], ['city'], ['billings'], ['wishlist']):
-
+       
+        
+        if await database.registration(info['username'], info['email'], info['password'], info['city'], info['billings'], info['wishlist']):
             result = await create_couple_by_email(info['email'])
 
             return jsonify(
                 {
                     'code': 200,
-                     'message': 'Пользователь с email: {} успешно зарегистрирован'.format(info['email']),
+                    'message': 'Пользователь с email: {} успешно зарегистрирован'.format(info['email']),
                     'access_token': result['access_token'],
                     'refresh_token': result['refresh_token']
                 }
             )
         else:
             abort(400)
+    
     
         
 
@@ -517,4 +519,4 @@ async def extra_personal_information():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host="localhost", debug=True, port=8080, threaded=True)

@@ -47,9 +47,6 @@ class TokenValidationError(Exception): # Класс ошики, которая �
             return 'Нельзя проверить токен по какой-либо причине. Необходимо скорректировать ваш запрос и/или проверить правильность вводимых данных.'
 
 
-
-
-
 class EncryptingService:
     def __init__(self):
         pass
@@ -59,14 +56,14 @@ class EncryptingService:
         Generates a Fernet key and saves it to a file named 'crypto.key'.
         """
         key = Fernet.generate_key()
-        with open('crypto.key', 'wb') as key_file:
+        with open('server/server_helpers/crypto.key', 'wb') as key_file:
             key_file.write(key)
     
     async def load_key(self):
         """
         Loads a previously generated Fernet key from the file named 'crypto.key'.
         """
-        return await open('crypto.key', 'rb').read()
+        return open('server/server_helpers/crypto.key', 'rb').read()
     
     async def encrypt_string(self, my_str):
         """
@@ -75,7 +72,8 @@ class EncryptingService:
         key = await self.load_key()
         fernet = Fernet(key)
         encrypted_string = fernet.encrypt(my_str.encode())
-        return encrypted_string.decode()
+        # return encrypted_string.decode()
+        return encrypted_string #! может так получиться, что пароли шифруются так, а токены иначе
     
     async def decrypt_string(self, encrypted_str):
         """
@@ -83,7 +81,7 @@ class EncryptingService:
         """
         key = await self.load_key()
         fernet = Fernet(key)
-        decrypted_string = fernet.decrypt(encrypted_str.encode())
+        decrypted_string = fernet.decrypt(encrypted_str) #! тут может быть ошибка. Пока точно не понятно, как программа работает с входящими данными
         return decrypted_string.decode()
     
     async def get_email_from_token(self, token):
@@ -108,13 +106,14 @@ class Access(EncryptingService):
     
     async def create_access_token(self, email):
         try:
-            access_token = await self.encrypt_phrase(
+            access_token = await self.encrypt_string(
                 json.dumps({
                     'email': email,  # remove the unnecessary newline character from here
                     'start_date': datetime.now().isoformat(),
                     'expiration_date': (datetime.now() + timedelta(days=1)).isoformat(),
                 })
             )
+            access_token = access_token.decode()
             return {
                 'code': 200,
                 'message': 'Access_token создан успешно.',
@@ -128,7 +127,7 @@ class Access(EncryptingService):
     
     async def validate_access_token(self, access_token):
         try:
-            email = json.loads(await self.decrypt_phrase(access_token))['email']  # extract 'email' from the access_token
+            email = json.loads(await self.decrypt_string(access_token))['email']  # extract 'email' from the access_token
         except:
             raise Exception('Не удалось корректно расшифровать токен, либо email в нем отсутствует.')
         if not email: 
@@ -136,7 +135,7 @@ class Access(EncryptingService):
                 'code': 403,
                 'message': 'Не удалось получить email из access_token. Необходимо повторно авторизоваться',
             }
-        time_diff = datetime.fromisoformat(json.loads(await self.decrypt_phrase(access_token))['expiration_date']) - datetime.now()  # extract 'expiration_date' from the access_token
+        time_diff = datetime.fromisoformat(json.loads(await self.decrypt_string(access_token))['expiration_date']) - datetime.now()  # extract 'expiration_date' from the access_token
         if time_diff.total_seconds() > 0:
             return {
                 'code': 200,
@@ -161,16 +160,20 @@ class Refresh(Access):
             if not email or email == None: # проверка на то, был ле передан почтовый адрес. Без него не получится сделать рефреш
                 raise EmptyDataError('No email data. Cant create token') # выброс кастомной ошибки
         except Exception as e:
-            print('Error while combinig data in "create_refresh_token"') 
+            print('Error while combinig data in "create_refresh_token"')
+        
 
-        return {
-            'code': 200, #'access_token': self.create_access(email).decode(),
-            'refresh_token': self.encrypt_phrase(json.dumps(
+        refresh_token = await self.encrypt_string(json.dumps(
                 {
                 'email': email, # по конкретной почте создается токен
                 'start_date': datetime.now().isoformat(),
                 'expiration_date': (datetime.now() + timedelta(days=7)).isoformat() # время действия токена (одна неделя)
-                })).decode()
+                }))
+        refresh_token = refresh_token.decode()
+
+        return {
+            'code': 200, #'access_token': self.create_access(email).decode(),
+            'refresh_token': refresh_token
             }
     
     #TODO Для создания повышенного уровня защиты, необходимо внедрить проверку на пользователя: Есть ли этот пользователь в БД или нет.
@@ -313,13 +316,15 @@ async def decrypt_and_get_email(token):
     return await EncryptingService().email_from_token(token)
 
 
-@token_decorate.token_service_decorator
+
 async def create_couple_by_email(email):
     refresh_token = await Refresh().create_refresh_token(email)
+    refresh_token = refresh_token['refresh_token']
     access_token = await Refresh().create_access_token(email)
+    access_token = access_token['access_token']
 
     return {
         'access_token': access_token,
-        'refreshen_token': refresh_token
+        'refresh_token': refresh_token
     }
 
