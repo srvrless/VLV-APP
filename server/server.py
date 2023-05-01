@@ -168,48 +168,69 @@ async def update_products_in_database():
     if request.method == 'GET':
 
         box_variants = []
-        material, colour, brand, size, price, images = '', '', '', '', '', []
+        
         for page in range(1, 201):
+            images = []
+            material = '' 
+            colour = ''
+            brand = ''
+            size = ''
+            price = ''
             info = requests.get(insales_url + '/' + 'products.json', params={'page_sise': 100, 'page': page}).json()
-            for product in info:
-                for img in product.get('images', []):
-                    images.append(img.get('original_url'))
+            for i in info:
+                try:
+                    for q in i['images']:
+                        images.append(q['compact_url'])
+                        images.append(q['large_url'])
+                        images.append(q['medium_url'])
+                        images.append(q['original_url'])
+                        images.append(q['small_url'])
+                        images.append(q['thumb_url'])
+                        images.append(q['url'])
 
-                for characteristic in product.get('characteristics', []):
-                    if characteristic.get('property_id', None) == 40865551: # Материал
-                        material = characteristic.get('title', '')
-                    elif characteristic.get('property_id', None) == 37399009: # Цвет
-                        colour = characteristic.get('title', '')
-                    elif characteristic.get('property_id', None) == 35926723: # Бренд
-                        brand = characteristic.get('title', '')
-                    elif characteristic.get('property_id', None) == 35932191: #? Размер
-                        size = characteristic.get('title', '')
+                except Exception as e:
+                    print('Ошибка при добавлении изображений: {}'.format(e))
+                    pass
 
-                if size:
-                    size = [s.replace(' ', '') for s in size.split(',')]
-                    try:
-                        size = [float(s) for s in size]
-                    except:
-                        pass
 
-                product_data = {
-                    'available': str(product.get('available', False)),
-                    'category_id': product.get('category_id', 0),
-                    'material': material or '',
-                    #'ads_category': product.get('characteristics', [])[0].get('title'),
-                    'colour': colour or '',
-                    'brand': brand or '',
-                    'size': size or [],
-                    'price': int(float(product.get('variants', [])[0].get('base_price', 0))), 
-                    'description': html_parser(product.get('description', '')),
-                    'insales_id': product.get('id', 0),
-                    'title': product.get('title', ''),
-                    'variants': [variant.get('id', 0) for variant in product.get('variants', [])],
-                    'images': json.dumps(images) or '[]'
-                }
+                for t in i['characteristics']:
+                    if t['property_id'] == 40865551: # Материал
+                        material = t['title']
+                    elif t['property_id'] == 37399009: # Цвет
+                        colour = t['title']
+                    elif t['property_id'] == 35926723: # Бренд
+                        brand = t['title']
+                    elif t['property_id'] == 35932191: #? Размер
+                        size = t['title']
+                    #elif t['property_id'] == 35934755:
+                       # price = t['title']
+                
+                if len(size) != 0 or size != '' or size is not None:
+                    if type(size) != list:
+                        size = size.split(',')
+                        size = [s.replace(' ', '') for s in size]
+                        try: size = [float(s) for s in size]
+                        except: pass
+                
+            
+                product = {
+                        'available': str(i['available']),
+                        'category_id': i['category_id'],
+                        'material': material,
+                        #'ads_category': i['characteristics'][1]['title'],
+                        'colour': colour,
+                        'brand': brand,
+                        'size': size,
+                        'price': int(float(i['variants'][0]['base_price'])), 
+                        'description': html_parser(i['description']),
+                        'insales_id': i['id'],
+                        'title': i['title'],
+                        'variants': [ii['id'] for ii in i['variants']],
+                        'images': json.dumps(images)
+                        }
 
                 images = []
-                result = await database.update_products(product_data)
+                result = await database.update_products(product)
         
         return jsonify({
             'code': 200,
