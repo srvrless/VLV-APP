@@ -104,6 +104,47 @@ async def token_process(access_token, refresh_token): # ? Функция, кот
     
     else:
         return False
+    
+
+async def token_validate_process(result):
+    if type(result) == bool:
+            if result:
+                return jsonify(
+                    {
+                        'code': 200,
+                        'message': 'Авторизация метода успешно пройдена'
+                    }
+                )
+            elif not result:
+                return jsonify(
+                    {
+                        'code': 406,
+                        'message': 'Общая ошибка при обработке информации о пользовательском токене'
+                    }
+                )
+    else:
+        if result['code'] == 401:
+            return jsonify(
+                {
+                    'code': 405,
+                    'message': 'Необъодима повторная авторизация для обновления пары'
+                }
+                )
+        elif result['code'] == 201:
+            return jsonify(
+                {
+                    'code': 405,
+                    'message': 'C refresh_token все впорядке. Необходимо применить новый access_token для входа, который был сгенерирован',
+                    'new_access_token': result['access_token']
+                }
+            )
+        elif result['code'] == 203:
+            return jsonify(
+                {
+                    'code': 405,
+                    'message': 'Для прохождения авторизации метода необходимо передать в запрос также refresh_token'
+                }
+            )
 
 
 def html_parser(html_document):
@@ -155,12 +196,7 @@ async def update_products_in_database():
         for _ in range(200):
             if _ == 0:
                 continue
-            images = []
-            material = '' 
-            colour = ''
-            brand = ''
-            size = ''
-            price = ''
+            material, colour, brand, size, price, images = '', '', '', '', '', []
             info = requests.get(insales_url + '/' + 'products.json', params={'page_sise': 100, 'page': _}).json()
             for i in info: 
 
@@ -214,15 +250,12 @@ async def update_products_in_database():
                 if result:
                     pass
 
-        return jsonify(
-            
-            {
+        return jsonify({
             'code': 200,
             'message': 'Все товары были обновлены в БД успешно'  
             })
 
-    return jsonify(
-        {
+    return jsonify({
         'code': 202,
         'message': 'Данный метод не поддерживается'
         })
@@ -233,6 +266,22 @@ async def get_product_list():
     if request.method == 'GET':
 
         result = await database.get_product_list()
+
+        return jsonify({
+            'code': 200,
+            'message': result
+            })
+
+    return jsonify({
+        'code': 202,
+        'message': 'Данный метод не поддерживается'
+            })
+
+@app.route('/collections_list', methods=['GET', 'POST']) #? Получение полного списка rколлекций из БД
+async def get_collections_list():
+    if request.method == 'GET':
+
+        result = await database.get_all_categories()
 
         return jsonify(
             {
@@ -631,16 +680,46 @@ async def extra_personal_information():
 #? Рекомендации по уходу, о нас, магазины и тд. Все, что может быть дополнительным
 
 
+### Конец дополнительных методов ###
 
+
+### Методы работы с магазином ###
+#? Все, что касается магазина, товаров, заказов
+
+
+'''
+@app.route('/add_to_cart', methods=['GET', 'POST']) #? Добавление товара в корзину
+async def add_to_cart():
+    if request.method == 'POST':
+        info = await request.get_json()
+
+        access_token = request.headers.get('acess_token')
+        refresh_token = request.headers.get('refresh_token')
+
+        result = await token_process(access_token, refresh_token)
+        response_from_validate = await token_validate_process(result)
+
+        if response_from_validate['code'] == 200:
+            pass
+        else:
+            return response_from_validate['message']
+        
+        email = await decrypt_and_get_email(access_token)
+        
+        if ssession.insert_into_cart(email, info['product_id']):
+            return jsonify({
+                    'code': 200,
+                    'message': 'Товар успешно добавлен в корзину'
+                })
+
+    else: 
+        return jsonify({
+        'code': 400,
+        'message': 'Данный метод не поддерживается.'
+        })
+'''
 
         
-
-
-
-
-
-
-
 
 
 
