@@ -3,14 +3,37 @@ from quart import jsonify
 from quart import request
 from quart import render_template
 from server_helpers.session_factory import SSession
-from server_helpers.token_factory import access_validation, refresh_validation, decrypt_and_get_email
+from server_helpers.token_factory import access_validation, refresh_validation, decrypt_and_get_email, access_creation, create_couple_by_email
+from database import Database
 
 
 
 app = Quart(__name__)
 ssession = SSession()
+database = Database()
+
+'''
+1 мая 2023
+
+#? 1. Телефон добавляется в БД только после его подтверждения. До этого не стоит его добавлять в БД вообще.
+- Таким образом, сначала регистрируем пользователя по его email, его имя и фамилию. 
+- Потом туда уже будем добавлять его Имя, Фамилию и тд. 
 
 
+
+#? 2. контроль заказов.
+Для того, чтобы правильно контролировать заказы, нужно создать для этого отдельную таблицу.
+
+
+'''
+
+
+
+
+# TODO Добавлеие новых баннеров в БД
+# TODO Вывод товаров из БД, чтобы их отображать на странице
+#TODO Проверка, чтобы администратор был авторизован: Защита от перехода поперек пользовательского сценария
+#TODO Добавление нового баннера / редактирование тех баннеров, которые есть сейчас на странице
 # TODO: Вставить в программный код места, где создаются новые сессии и они управляются
 # TODO: Сделать автоматическую выдачу токена при проверке рефреш, если рефреш еще действует (сейчас в ручном)
 # TODO: В базу данных каждоо пользователя добавить поле "История заказов".
@@ -26,35 +49,47 @@ ssession = SSession()
 #TODO: сделать метод подтверждения номера телефона через смс, как и положено ----> подключиь для этого сторонний смс сервис
 #TODO: Сделать метод удаления профиля
 #TODO: написать функцию смены пароля и подтверждение данного действия через смс.
+#TODO: Сделать таблицу отдельную, в которой будет список магазинов
+#TODO Нужно нажать на кнопку на почте, чтобы ее подтвердить. 
+#TODO Записать в БД статус электронной почты (код)
+# TODO Отправка уведомдения о том, что код был неверный (если его ввели неверно)
 
 
 
 # Далее
 
 
-
-#TODO: Сделать таблицу отдельную, в которой будет список магазинов
-
-
-
-
-
-
-async def process(access_token, refresh_token):
+# ? Данный метод можно смело применять при любом авторизованном запросе
+async def token_process(access_token, refresh_token): # ? Функция, которая отвечает за проверку подленности токена
     # info = await request.get_json()
-    result = await access_validation(access_token) # 
+    result = await access_validation(access_token) 
 
     if result is not True:
+        if not refresh_token or refresh_token == '' or len(refresh_token) == 0:
+            return jsonify(
+                {
+                    'code': 203,
+                    'message': 'Необходимо передать в запрос refresh_token. Он должен быть ненулевой для того, чтобы проверка прошла необходимым образом'
+                }
+            )
         result = await refresh_validation(refresh_token)
 
         if result is not True:
-            return result
+            return jsonify(
+                {
+                    'code': 401,
+                    'message': 'Доступ закрыт. Необходимо авторизоваться повторно для создание новой пары refresh-access'
+                }
+            )
             
-        else: 
+        else:
+
+            new_access_token = await access_creation(access_token)
             return jsonify(
                 {
                     'code': 201,
-                    'message': 'Рефреш-токен действителен. Необходимо обновить access_token'
+                    'message': 'Рефреш-токен действителен. Необходимо обновить access_token',
+                    'access_token': new_access_token
                 }
             )
         
@@ -65,10 +100,7 @@ async def process(access_token, refresh_token):
         return False
 
 
-
-
-
-### Start app. Configuration parameters. ###
+### Start app. Configuration parametres. ###
 
 
 @app.route('/')
@@ -81,10 +113,8 @@ def index():
     )
 
 
-
+'''
 ### Admin Pannel ###
-
-
 @app.route('/admin', methods=['GET', 'POST']) # Страница перехода на админпанель
 async def admin():
     if request.method == 'POST': # ? Вход в Административную панель по логину и паролю администратора
@@ -100,8 +130,7 @@ async def admin():
 
 
 
-#TODO Проверка, чтобы администратор был авторизован: Защита от перехода поперек пользовательского сценария
-#TODO Добавление нового баннера / редактирование тех баннеров, которые есть сейчас на странице
+
 #! необходимо на эту страницу сначала выводить имебщиеся баннеры, чтобы их можно было редактировать
 @app.route('/banner_edit', methods=['GET', 'POST']) # Функция взаимодействия (редактирования / добавления баннеров)
 async def banner_edit():
@@ -113,18 +142,26 @@ async def banner_edit():
         return jsonify(200) # ? Добавление нового баннера (загрузка с компьютера). Заполнение полей бренда и названия
 
 
-# TODO Добавлеие новых баннеров в БД
-# TODO Вывод товаров из БД, чтобы их отображать на странице
+
 
 
 @app.route('/get_banners', methods=['GET', 'POST']) # Получение баннеров (вывод)
 def get_banners():
     return jsonify('DB information') #! 
+'''
 
 
 
+'''
+        access_token = request.headers.get('acess_token')
+        refresh_token = request.headers.get('refresh_token')
 
-
+        result = await token_process(access_token, refresh_token)
+        if type(result) == bool:
+            if result:
+                pass
+            elif not result: ...
+        '''
 
 ### Авторизация ###
 # ? Алгоримт входа пользователя в приложение. Проверка его токенов. 
@@ -133,13 +170,129 @@ def get_banners():
 app.route('login', methods=['GET', 'POST']) # ? Функция входа, а также принудительного входа, когда аксесс заканчивает свое действие. 
 async def login(): # Авторизация в приложении пользователя. 
     if request.method == 'POST':
-        #! Проверка по БД и произведение всех необходимых действий
-        pass
 
-    if request.method == 'GET':
-        return jsonify(400) # Выдавать ошибку, если приходит такой запрос
-    return jsonify(200)
+        info = await request.get_json()
+        email = info['email']
+        password = info['password']
 
+        if await database.login(email, password):
+
+            result = await create_couple_by_email(email)
+
+            return jsonify(
+                {
+                    'code': 200,
+                    'message': 'Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания',
+                    'access_token': result['access_token'],
+                    'refresh_token': result['refresh_token']
+                }
+            )
+        
+        else: 
+            return jsonify(
+                {
+                    'code': 400,
+                    'message': 'Доступ закрыт. Возможно, неправильно введены данные пользователя для входа. Перепроверьте вводимые данные'
+                }
+            )
+    
+    else:
+        return jsonify(
+            {
+                'code': 400,
+                'message': 'Данный метод не поддерживается'
+            }
+        )
+        
+        
+
+'''
+#? Потом будет доработано. В следующих итеррациях
+@app.route('/password_recovery', methods=['GET', 'POST'])
+async def password_recovery():
+
+    if request.method == 'POST':
+
+        access_token = request.headers.get('acess_token')
+
+        response = await server_controller.validate_access_token(access_token)
+
+        if response['code'] == 200:
+            email = server_controller.email_from_token(access_token)
+
+            if await server_controller.code_collector(email):
+                return jsonify(
+                    {
+                    'code': 200,
+                    'message': 'Код проверки отправлен на электронную почту'
+                    }
+                )
+            
+            else:
+                return jsonify(
+                    {
+                    'code': 401,
+                    'message': 'Сообщение на почту не было отправлено'
+                    }
+                )
+        
+        else:
+            return jsonify(
+                {
+                'code': 400,
+                'message': 'Возможно, ошибка в проверке токена'
+                }
+            )
+    
+    return jsonify(
+        {
+        'code': 202,
+        'message': 'Данный метод не поддерживается'
+        })
+
+
+@app.route('/accept_recovery', methods=['GET', 'POST'])
+async def accept_recovery():
+
+    if request.method == 'POST':
+
+        access_token = request.headers.get('acess_token')
+
+        response = await access_token(access_token)
+
+        if response['code'] == 200:
+            email = server_controller.email_from_token(access_token)
+
+            if await server_controller.decrypt_code_collector(email):
+                return jsonify(
+                    {
+                    'code': 200,
+                    'message': 'Успешное подтверждение'
+                    }
+                )
+            
+            else:
+                return jsonify(
+                    {
+                    'code': 401,
+                    'message': 'Код, отправленный на почту не подтвержден. Возможно иная ошибка в процессе дешифрования'
+                    }
+                )
+        
+        else:
+            return jsonify(
+                {
+                'code': 400,
+                'message': 'Возможно, ошибка в проверке токена'
+                }
+            )
+    
+    return jsonify(
+        {
+        'code': 202,
+        'message': 'Данный метод не поддерживается'
+        })
+'''
 
 
 ### Конец авторизации пользователя ###
@@ -151,10 +304,9 @@ async def login(): # Авторизация в приложении пользо
 # ? Добавление нового пользователя в БД, выдача ему токенов. 
 
 
-#TODO Нужно нажать на кнопку на почте, чтобы ее подтвердить. 
+
 # То есть, если нажимают, летит запрос и почта подтвержается
-#TODO Записать в БД статус электронной почты (код)
-# TODO Отправка уведомдения о том, что код был неверный (если его ввели неверно)
+
 app.route('email_code', methods=['GET', 'POST']) # Отправка кода на указанный email
 def email_code(): #! Сделать авторизацию через email - страницу. Получение КОДА !!!! Нужно вводить код
     return jsonify(200)
@@ -183,11 +335,6 @@ async def registration(): # Ввод личных данных при регис
     return jsonify(200)
 
 
-app.route('/create_access_by_refresh', methods=['GET', 'POST']) #? Ручка обновления аксесс-токена
-def create_access_by_refresh(): # GET 
-    #TODO Передавать в контексте рефреш, по которому нужно будет все обновить
-    return jsonify(200)
-
 
 ### Конец регистрации ###
 
@@ -196,18 +343,21 @@ def create_access_by_refresh(): # GET
 ### Сервисные специальные методы ###
 # ? Нужны для принудительного игнорирования общего алгоритма
 
-
 # ! Сервисный метод. Не использовать в общем алгоритме. Вызывается при возникновении ошибок, либо при принудительном игнорировании алгоритма
 app.route('/create_refresh_by_email', methods=['GET', 'POST']) #? Отдельный метод для создания рефреш-токена
 async def create_refresh_by_email(): # GET 
     #TODO Передавать параметром email для создания нового рефреша
     return jsonify(200)
 
-
 # ! Сервисный метод. Не использовать в общем алгоритме. Вызывается при возникновении ошибок, либо при принудительном игнорировании алгоритма
 app.route('/create_access_by_email', methods=['GET', 'POST']) #? Отдельный метод для создания аксесс-токена
 async def create_access_by_email(): # GET 
     #TODO Передавать параметром email для создания нового аксесса
+    return jsonify(200)
+
+app.route('/create_access_by_refresh', methods=['GET', 'POST']) #? Ручка обновления аксесс-токена
+def create_access_by_refresh(): # GET 
+    #TODO Передавать в контексте рефреш, по которому нужно будет все обновить
     return jsonify(200)
 
 
@@ -217,6 +367,8 @@ async def create_access_by_email(): # GET
 ### Личный профиль пользователя. Пользовательский сценарий (авторизация) ###
 #? Все, что связано с профилем пользователя, выдача информации / редактирование информации
 
+'''
+#? В текущей версии данный метод выполняется на Front-end 
 
 @app.route('/check_logged_in', methods=['GET', 'POST'])
 async def check_logged_in():
@@ -265,6 +417,9 @@ async def check_logged_in():
                 }
             )
 
+'''
+
+
 @app.route('/personal_information', methods=['GET', 'POST']) #? модуль смены / обновления пользовательской персональной информации (основной)
 async def personal_information():
 
@@ -284,7 +439,7 @@ async def personal_information():
         access_token = request.headers.get('access_token')
         refresh_token = request.headers.get('refresh_token')
 
-        result = await process(access_token, refresh_token)
+        result = await token_process(access_token, refresh_token)
 
         if result:
 
@@ -298,6 +453,14 @@ async def personal_information():
             Здесь код добавления всей этой информации в БД пользователя,
             то есть обновление его информации
             '''
+        
+        else:
+            return jsonify(
+                {
+                    'code': 403,
+                    'message': 'Не был предоставлен доступ'
+                }
+            )
         
         return jsonify(
             {
@@ -314,13 +477,7 @@ async def extra_personal_information():
 
         
 
-        
-
-        
-
-
-        
-
+    
 ### Конец методов работы с профилем пользователя ###
 
 

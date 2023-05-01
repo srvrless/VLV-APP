@@ -51,15 +51,27 @@ class Access(EncryptingService):
         return
     
     async def create_access_token(self, email): 
-        return {
-            'code': 200,
-            'acess_token': self.encrypt_phrase(json.dumps(
+        try:
+            access_token = await self.encrypt_phrase(json.dumps(
                 {
                     'email': email, # по конкретной почте создается токен
                     'start_date': datetime.now().isoformat(),
                     'expiration_date': (datetime.now() + timedelta(days=1)).isoformat() # создается на 24 часа
                 }))
-            } 
+            return jsonify(
+                {
+                'code': 200,
+                'message': 'Access_token создан успешно.',
+                'acess_token': access_token
+                }
+            )
+        except Exception as e:
+            return jsonify(
+                {
+                    'code': 404,
+                    'message': 'Произошла ошибка при формировании access_token. Необходимо обратить внимание на функцию создания аксесс. Ошибка: {}'.format(e)
+                }
+            )
     
     async def validate_access_token(self, access_token):
 
@@ -210,7 +222,48 @@ async def access_validation(access_token):
         raise TokenValidationError('Ошибка в декораторе или функции проверки данных токена')
 
 
+@token_decorate.access_decorator
+async def access_creation(old_access_token):
+    try:
+        email = await Refresh().email_from_token(old_access_token)
+        info = await Refresh().create_access_token(email)
+        if info('code') == 200:
+            access_token = info('access_token')
+            return jsonify(
+                {
+                    'code': 200,
+                    'access_token': access_token
+                }
+            )
+        
+        elif info('code') == 404:
+            return jsonify(
+                {
+                    'code': 404,
+                    'message': 'Ошибка при генерации access_token'
+                }
+            )
+    
+    except Exception as e:
+        return jsonify(
+            {
+                'code': 405,
+                'message': 'Общая ошибка при выполнении функции создания токена; Ошибка декоратора. Тест: {}'.format(e)
+            }
+        )
+    
 @token_decorate.token_service_decorator
 async def decrypt_and_get_email(token):
     return await EncryptingService().email_from_token(token)
+
+
+@token_decorate.token_service_decorator
+async def create_couple_by_email(email):
+    refresh_token = await Refresh().create_refresh_token(email)
+    access_token = await Refresh().create_access_token(email)
+
+    return {
+        'access_token': access_token,
+        'refreshen_token': refresh_token
+    }
 
