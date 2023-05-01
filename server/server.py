@@ -25,16 +25,10 @@ insales_url = 'https://26c60c2c500a6c6f1af7aa91d11c197c:a5f07ba6e0c4738819d1ba91
 - Таким образом, сначала регистрируем пользователя по его email, его имя и фамилию. 
 - Потом туда уже будем добавлять его Имя, Фамилию и тд. 
 
-
-
 #? 2. контроль заказов.
 Для того, чтобы правильно контролировать заказы, нужно создать для этого отдельную таблицу.
 
-
 '''
-
-
-
 
 # TODO Добавлеие новых баннеров в БД
 # TODO Вывод товаров из БД, чтобы их отображать на странице
@@ -61,10 +55,6 @@ insales_url = 'https://26c60c2c500a6c6f1af7aa91d11c197c:a5f07ba6e0c4738819d1ba91
 # TODO Отправка уведомдения о том, что код был неверный (если его ввели неверно)
 
 
-
-# Далее
-
-
 # ? Данный метод можно смело применять при любом авторизованном запросе
 async def token_process(access_token, refresh_token): # ? Функция, которая отвечает за проверку подленности токена
     # info = await request.get_json()
@@ -72,32 +62,25 @@ async def token_process(access_token, refresh_token): # ? Функция, кот
 
     if result is not True:
         if not refresh_token or refresh_token == '' or len(refresh_token) == 0:
-            return jsonify(
-                {
+            return jsonify({
                     'code': 203,
                     'message': 'Необходимо передать в запрос refresh_token. Он должен быть ненулевой для того, чтобы проверка прошла необходимым образом'
-                }
-            )
+                })
         result = await refresh_validation(refresh_token)
 
         if result is not True:
-            return jsonify(
-                {
+            return jsonify({
                     'code': 401,
                     'message': 'Доступ закрыт. Необходимо авторизоваться повторно для создание новой пары refresh-access'
-                }
-            )
+                })
             
         else:
-
             new_access_token = await access_creation(access_token)
-            return jsonify(
-                {
+            return jsonify({
                     'code': 201,
                     'message': 'Рефреш-токен действителен. Необходимо обновить access_token',
                     'access_token': new_access_token
-                }
-            )
+                })
         
     elif result:
         return True
@@ -107,44 +90,36 @@ async def token_process(access_token, refresh_token): # ? Функция, кот
     
 
 async def token_validate_process(result):
-    if type(result) == bool:
-            if result:
-                return jsonify(
-                    {
-                        'code': 200,
-                        'message': 'Авторизация метода успешно пройдена'
-                    }
-                )
-            elif not result:
-                return jsonify(
-                    {
-                        'code': 406,
-                        'message': 'Общая ошибка при обработке информации о пользовательском токене'
-                    }
-                )
+    if isinstance(result, bool):
+        if result:
+            return jsonify({
+                'code': 200,
+                'message': 'Authorization method passed successfully'
+            })
+        else:
+            return jsonify({
+                'code': 406,
+                'message': 'General error while processing user token information'
+            })
     else:
-        if result['code'] == 401:
-            return jsonify(
-                {
-                    'code': 405,
-                    'message': 'Необъодима повторная авторизация для обновления пары'
-                }
-                )
-        elif result['code'] == 201:
-            return jsonify(
-                {
-                    'code': 405,
-                    'message': 'C refresh_token все впорядке. Необходимо применить новый access_token для входа, который был сгенерирован',
-                    'new_access_token': result['access_token']
-                }
-            )
-        elif result['code'] == 203:
-            return jsonify(
-                {
-                    'code': 405,
-                    'message': 'Для прохождения авторизации метода необходимо передать в запрос также refresh_token'
-                }
-            )
+        code = result.get('code')
+        if code == 401:
+            return jsonify({
+                'code': 405,
+                'message': 'Need to reauthorize to update the pair'
+            })
+        elif code == 201:
+            return jsonify({
+                'code': 405,
+                'message': 'Access with the new access_token generated is required',
+                'new_access_token': result['access_token']
+            })
+        elif code == 203:
+            return jsonify({
+                'code': 405,
+                'message': 'refresh_token is also required to authorize the method'
+            })
+
 
 
 def html_parser(html_document):
@@ -188,77 +163,63 @@ async def update_collections_in_database():
             }
         )
 
-@app.route('/update_prod_db', methods=['GET', 'POST']) #? Обновления продуктов в БД
+@app.route('/update_prod_db', methods=['GET'])
 async def update_products_in_database():
     if request.method == 'GET':
 
         box_variants = []
-        for _ in range(200):
-            if _ == 0:
-                continue
-            material, colour, brand, size, price, images = '', '', '', '', '', []
-            info = requests.get(insales_url + '/' + 'products.json', params={'page_sise': 100, 'page': _}).json()
-            for i in info: 
+        material, colour, brand, size, price, images = '', '', '', '', '', []
+        for page in range(1, 201):
+            info = requests.get(insales_url + '/' + 'products.json', params={'page_sise': 100, 'page': page}).json()
+            for product in info:
+                for img in product.get('images', []):
+                    images.append(img.get('original_url'))
 
-                try:
-                    for q in i['images']:
-                        images.append(q['original_url'])
+                for characteristic in product.get('characteristics', []):
+                    if characteristic.get('property_id', None) == 40865551: # Материал
+                        material = characteristic.get('title', '')
+                    elif characteristic.get('property_id', None) == 37399009: # Цвет
+                        colour = characteristic.get('title', '')
+                    elif characteristic.get('property_id', None) == 35926723: # Бренд
+                        brand = characteristic.get('title', '')
+                    elif characteristic.get('property_id', None) == 35932191: #? Размер
+                        size = characteristic.get('title', '')
 
-                except Exception as e:
-                    print('Ошибка при добавлении изображений: {}'.format(e))
-                    pass
+                if size:
+                    size = [s.replace(' ', '') for s in size.split(',')]
+                    try:
+                        size = [float(s) for s in size]
+                    except:
+                        pass
 
-
-                for t in i['characteristics']:
-                    if t['property_id'] == 40865551: # Материал
-                        material = t['title']
-                    elif t['property_id'] == 37399009: # Цвет
-                        colour = t['title']
-                    elif t['property_id'] == 35926723: # Бренд
-                        brand = t['title']
-                    elif t['property_id'] == 35932191: #? Размер
-                        size = t['title']
-                    #elif t['property_id'] == 35934755:
-                       # price = t['title']
-                
-                if len(size) != 0 or size != '' or size is not None:
-                    if type(size) != list:
-                        size = size.split(',')
-                        size = [s.replace(' ', '') for s in size]
-                        try: size = [float(s) for s in size]
-                        except: pass
-                
-            
-                product = {
-                        'available': str(i['available']),
-                        'category_id': i['category_id'],
-                        'material': material,
-                        #'ads_category': i['characteristics'][1]['title'],
-                        'colour': colour,
-                        'brand': brand,
-                        'size': size,
-                        'price': int(float(i['variants'][0]['base_price'])), 
-                        'description': html_parser(i['description']),
-                        'insales_id': i['id'],
-                        'title': i['title'],
-                        'variants': [ii['id'] for ii in i['variants']],
-                        'images': json.dumps(images)
-                        }
+                product_data = {
+                    'available': str(product.get('available', False)),
+                    'category_id': product.get('category_id', 0),
+                    'material': material or '',
+                    #'ads_category': product.get('characteristics', [])[0].get('title'),
+                    'colour': colour or '',
+                    'brand': brand or '',
+                    'size': size or [],
+                    'price': int(float(product.get('variants', [])[0].get('base_price', 0))), 
+                    'description': html_parser(product.get('description', '')),
+                    'insales_id': product.get('id', 0),
+                    'title': product.get('title', ''),
+                    'variants': [variant.get('id', 0) for variant in product.get('variants', [])],
+                    'images': json.dumps(images) or '[]'
+                }
 
                 images = []
-                result = await database.update_products(product)
-                if result:
-                    pass
-
+                result = await database.update_products(product_data)
+        
         return jsonify({
             'code': 200,
-            'message': 'Все товары были обновлены в БД успешно'  
+            'message': 'All products were successfully updated in the database.'
             })
 
-    return jsonify({
-        'code': 202,
-        'message': 'Данный метод не поддерживается'
+    return jsonify({'code': 405,
+        'message': 'The method specified in the request is not allowed for the resource identified by the request URI.'
         })
+
 
 
 @app.route('/product_list', methods=['GET', 'POST']) #? Получение списка товаров из БД
@@ -283,69 +244,15 @@ async def get_collections_list():
 
         result = await database.get_all_categories()
 
-        return jsonify(
-            {
+        return jsonify({
             'code': 200,
             'message': result
             })
 
-    return jsonify(
-        {
+    return jsonify({
         'code': 202,
         'message': 'Данный метод не поддерживается'
             })
-
-
-
-'''
-### Admin Pannel ###
-@app.route('/admin', methods=['GET', 'POST']) # Страница перехода на админпанель
-async def admin():
-    if request.method == 'POST': # ? Вход в Административную панель по логину и паролю администратора
-        return jsonify( #! Дописать
-            {
-                'code': 200,
-                'message': 'Admin'
-            } #! Если все хорошо, то переход на главную страницу администратора
-        )
-    
-    if request.method == 'GET': #? Переход (просто вывод страницы администратора)
-        return await render_template('admin_enter.html')
-
-
-
-
-#! необходимо на эту страницу сначала выводить имебщиеся баннеры, чтобы их можно было редактировать
-@app.route('/banner_edit', methods=['GET', 'POST']) # Функция взаимодействия (редактирования / добавления баннеров)
-async def banner_edit():
-    
-    if request.method == 'GET': #! Доделать
-        return render_template('banners.html') # ? переход на страницу добавления / редактирования баннеров
-    
-    if request.method == 'POST': #! Доделать
-        return jsonify(200) # ? Добавление нового баннера (загрузка с компьютера). Заполнение полей бренда и названия
-
-
-
-
-
-@app.route('/get_banners', methods=['GET', 'POST']) # Получение баннеров (вывод)
-def get_banners():
-    return jsonify('DB information') #! 
-'''
-
-
-
-'''
-        access_token = request.headers.get('acess_token')
-        refresh_token = request.headers.get('refresh_token')
-
-        result = await token_process(access_token, refresh_token)
-        if type(result) == bool:
-            if result:
-                pass
-            elif not result: ...
-        '''
 
 ### Авторизация ###
 # ? Алгоримт входа пользователя в приложение. Проверка его токенов. 
@@ -363,126 +270,27 @@ async def login():
 
             result = await create_couple_by_email(email)
 
-            return jsonify(
-                {
+            return jsonify({
                     'code': 200,
                      'message': 'Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания',
                     'access_token': result['access_token'],
                     'refresh_token': result['refresh_token']
-                }
-            )
+                })
         
         else: 
-            return jsonify(
-                {
+            return jsonify({
                     'code': 400,
                     'message': 'Доступ закрыт. Возможно, неправильно введены данные пользователя для входа. Перепроверьте вводимые данные'
-                }
-            )
+                })
     else:
         abort(400)
 
         
-        
-
-'''
-#? Потом будет доработано. В следующих итеррациях
-@app.route('/password_recovery', methods=['GET', 'POST'])
-async def password_recovery():
-
-    if request.method == 'POST':
-
-        access_token = request.headers.get('acess_token')
-
-        response = await server_controller.validate_access_token(access_token)
-
-        if response['code'] == 200:
-            email = server_controller.email_from_token(access_token)
-
-            if await server_controller.code_collector(email):
-                return jsonify(
-                    {
-                    'code': 200,
-                    'message': 'Код проверки отправлен на электронную почту'
-                    }
-                )
-            
-            else:
-                return jsonify(
-                    {
-                    'code': 401,
-                    'message': 'Сообщение на почту не было отправлено'
-                    }
-                )
-        
-        else:
-            return jsonify(
-                {
-                'code': 400,
-                'message': 'Возможно, ошибка в проверке токена'
-                }
-            )
-    
-    return jsonify(
-        {
-        'code': 202,
-        'message': 'Данный метод не поддерживается'
-        })
-
-
-@app.route('/accept_recovery', methods=['GET', 'POST'])
-async def accept_recovery():
-
-    if request.method == 'POST':
-
-        access_token = request.headers.get('acess_token')
-
-        response = await access_token(access_token)
-
-        if response['code'] == 200:
-            email = server_controller.email_from_token(access_token)
-
-            if await server_controller.decrypt_code_collector(email):
-                return jsonify(
-                    {
-                    'code': 200,
-                    'message': 'Успешное подтверждение'
-                    }
-                )
-            
-            else:
-                return jsonify(
-                    {
-                    'code': 401,
-                    'message': 'Код, отправленный на почту не подтвержден. Возможно иная ошибка в процессе дешифрования'
-                    }
-                )
-        
-        else:
-            return jsonify(
-                {
-                'code': 400,
-                'message': 'Возможно, ошибка в проверке токена'
-                }
-            )
-    
-    return jsonify(
-        {
-        'code': 202,
-        'message': 'Данный метод не поддерживается'
-        })
-'''
-
-
 ### Конец авторизации пользователя ###
-
-
 
 
 ### Регистрация ###
 # ? Добавление нового пользователя в БД, выдача ему токенов. 
-
-
 
 # То есть, если нажимают, летит запрос и почта подтвержается
 
@@ -502,7 +310,6 @@ def email_confirm():
     return jsonify(200) #! Подтверждение той электронной почты, на которую было отправлено писмьо. После того, как нажали
 
 
-
 @app.route('/registration', methods=['POST'])
 async def registration(): # Ввод личных данных при регистрации в приложении и запись данных в БД 
     if request.method == 'POST':
@@ -511,27 +318,20 @@ async def registration(): # Ввод личных данных при регис
         if not all(k in info for k in ('username', 'email', 'password', 'city')):
             return jsonify({'code': 400, 'message': 'Не хватает аргументов'})
         
-       
-        
         if await database.registration(info['username'], info['email'], info['password'], info['city'], info['billings'], info['wishlist']):
             result = await create_couple_by_email(info['email'])
 
-            return jsonify(
-                {
+            return jsonify({
                     'code': 200,
                     'message': 'Пользователь с email: {} успешно зарегистрирован'.format(info['email']),
                     'access_token': result['access_token'],
                     'refresh_token': result['refresh_token']
-                }
-            )
+                })
         else:
             abort(400)
     
     
-        
-
 ### Конец регистрации ###
-
 
 
 ### Сервисные специальные методы ###
@@ -561,120 +361,7 @@ def create_access_by_refresh(): # GET
 ### Личный профиль пользователя. Пользовательский сценарий (авторизация) ###
 #? Все, что связано с профилем пользователя, выдача информации / редактирование информации
 
-'''
-#? В текущей версии данный метод выполняется на Front-end 
-
-@app.route('/check_logged_in', methods=['GET', 'POST'])
-async def check_logged_in():
-
-    if request.method == 'GET':
-        return jsonify(
-            {
-                'code': 200,
-                'message': 'Для использования данного метода запрос должен быть POST. Метод возвращает флаг авторизации пользователя в системе'
-            }
-        )
-    
-    elif request.method == 'POST':
-
-        access_token = request.headers.get('access_token')
-        refresh_token = request.headers.get('refresh_token')
-
-        result = await process(access_token, refresh_token)
-
-        if result:
-
-            email = await decrypt_and_get_email(refresh_token)
-            status = await ssession.check_logged(email)
-
-            if status:
-                return jsonify(
-                    {
-                        'code': 200,
-                        'message': 'Пользователь авторизован'
-                    }
-                )
-            
-            else:
-                return jsonify(
-                    {
-                        'code': 202,
-                        'message': 'Пользователь не авторизован'
-                    }
-                )
-
-        else: 
-            return jsonify(
-                {
-                    'code': 400,
-                    'message': 'Доступ заблокирован. Необходимо выяснить причину и исправить это'
-                }
-            )
-
-'''
-
-'''
-@app.route('/personal_information', methods=['GET', 'POST']) #? модуль смены / обновления пользовательской персональной информации (основной)
-async def personal_information():
-
-    if request.method == 'GET':
-
-        info = await request.get_json() # Достается персональная информация по email, который присылается параметром
-
-        return jsonify(
-            {
-                'code': 200,
-                'catalog': 'Information' #! Добавить вывод из БД личной информации пользователя
-            }
-        )
-    
-    elif request.method == 'POST':
-
-        access_token = request.headers.get('access_token')
-        refresh_token = request.headers.get('refresh_token')
-
-        result = await token_process(access_token, refresh_token)
-
-        if result:
-
-            name = request.headers.get('name')
-            secod_name = request.headers.get('second_name')
-            phone = request.headers.get('phone')
-
-            email = await decrypt_and_get_email(refresh_token)
-
-            
-            # Здесь код добавления всей этой информации в БД пользователя,
-            # то есть обновление его информации
-            
-        
-        else:
-            return jsonify(
-                {
-                    'code': 403,
-                    'message': 'Не был предоставлен доступ'
-                }
-            )
-        
-        return jsonify(
-            {
-                'code': 200,
-                'message': 'Информация пользователя успешно обновлена'
-            }
-        )
-'''
-'''
-@app.route('/extra_personal_information', methods=['GET', 'POST']) #? модуль добавления информации об адресе и о доставке
-async def extra_personal_information():
-    #! Адрес доставки. Для добавления адреса доставки нужно обработать весь список городов, выдать самые релевантные варианты
-    return
-'''
-        
-
-    
 ### Конец методов работы с профилем пользователя ###
-
-
 
 ### Дополнительные методы ###
 #? Рекомендации по уходу, о нас, магазины и тд. Все, что может быть дополнительным
@@ -685,47 +372,6 @@ async def extra_personal_information():
 
 ### Методы работы с магазином ###
 #? Все, что касается магазина, товаров, заказов
-
-
-'''
-@app.route('/add_to_cart', methods=['GET', 'POST']) #? Добавление товара в корзину
-async def add_to_cart():
-    if request.method == 'POST':
-        info = await request.get_json()
-
-        access_token = request.headers.get('acess_token')
-        refresh_token = request.headers.get('refresh_token')
-
-        result = await token_process(access_token, refresh_token)
-        response_from_validate = await token_validate_process(result)
-
-        if response_from_validate['code'] == 200:
-            pass
-        else:
-            return response_from_validate['message']
-        
-        email = await decrypt_and_get_email(access_token)
-        
-        if ssession.insert_into_cart(email, info['product_id']):
-            return jsonify({
-                    'code': 200,
-                    'message': 'Товар успешно добавлен в корзину'
-                })
-
-    else: 
-        return jsonify({
-        'code': 400,
-        'message': 'Данный метод не поддерживается.'
-        })
-'''
-
-        
-
-
-
-
-
-
 
 
 
