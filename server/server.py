@@ -6,6 +6,9 @@ from server_helpers.session_factory import SSession
 from server_helpers.token_factory import access_validation, refresh_validation, decrypt_and_get_email, access_creation, create_couple_by_email
 from database import Database
 from quart import abort
+from bs4 import BeautifulSoup
+import json
+import requests
 
 
 
@@ -13,6 +16,7 @@ app = Quart(__name__)
 
 ssession = SSession()
 database = Database()
+insales_url = 'https://26c60c2c500a6c6f1af7aa91d11c197c:a5f07ba6e0c4738819d1ba910731db57@myshop-bte337.myinsales.ru/admin'
 
 '''
 1 мая 2023
@@ -102,6 +106,16 @@ async def token_process(access_token, refresh_token): # ? Функция, кот
         return False
 
 
+def html_parser(html_document):
+        try:
+            soup = BeautifulSoup(html_document, 'html.parser')
+            text = soup.get_text()
+            text = text.replace('Описание', '')
+            text = text.replace('  ', '')
+            return text
+        except TypeError: return ''
+
+
 ### Start app. Configuration parametres. ###
 
 
@@ -113,6 +127,124 @@ def index():
             'message': 'Start'
         }
     )
+
+@app.route('/update_coll_db', methods=['GET', 'POST']) #? Обновления категорий в БД
+async def update_collections_in_database():
+    if request.method == 'GET':
+
+        info = requests.get(insales_url + '/' + 'collections.json').json()
+        for i in info:
+            result = await database.add_collections(i['id'], i['parent_id'], i['title'], str(i['position']))
+            if result:
+                pass
+            else:
+                abort(405) #? Не получилось добавить ту или иную коллекцию
+        
+        return jsonify(
+            {
+                'code': 200,
+                'message': 'Все коллекции успешно добавлены'
+            }
+        )
+
+@app.route('/update_prod_db', methods=['GET', 'POST']) #? Обновления продуктов в БД
+async def update_products_in_database():
+    if request.method == 'GET':
+
+        box_variants = []
+        for _ in range(200):
+            if _ == 0:
+                continue
+            images = []
+            material = '' 
+            colour = ''
+            brand = ''
+            size = ''
+            price = ''
+            info = requests.get(insales_url + '/' + 'products.json', params={'page_sise': 100, 'page': _}).json()
+            for i in info: 
+
+                try:
+                    for q in i['images']:
+                        images.append(q['original_url'])
+
+                except Exception as e:
+                    print('Ошибка при добавлении изображений: {}'.format(e))
+                    pass
+
+
+                for t in i['characteristics']:
+                    if t['property_id'] == 40865551: # Материал
+                        material = t['title']
+                    elif t['property_id'] == 37399009: # Цвет
+                        colour = t['title']
+                    elif t['property_id'] == 35926723: # Бренд
+                        brand = t['title']
+                    elif t['property_id'] == 35932191: #? Размер
+                        size = t['title']
+                    #elif t['property_id'] == 35934755:
+                       # price = t['title']
+                
+                if len(size) != 0 or size != '' or size is not None:
+                    if type(size) != list:
+                        size = size.split(',')
+                        size = [s.replace(' ', '') for s in size]
+                        try: size = [float(s) for s in size]
+                        except: pass
+                
+            
+                product = {
+                        'available': str(i['available']),
+                        'category_id': i['category_id'],
+                        'material': material,
+                        #'ads_category': i['characteristics'][1]['title'],
+                        'colour': colour,
+                        'brand': brand,
+                        'size': size,
+                        'price': int(float(i['variants'][0]['base_price'])), 
+                        'description': html_parser(i['description']),
+                        'insales_id': i['id'],
+                        'title': i['title'],
+                        'variants': [ii['id'] for ii in i['variants']],
+                        'images': json.dumps(images)
+                        }
+
+                images = []
+                result = await database.update_products(product)
+                if result:
+                    pass
+
+        return jsonify(
+            
+            {
+            'code': 200,
+            'message': 'Все товары были обновлены в БД успешно'  
+            })
+
+    return jsonify(
+        {
+        'code': 202,
+        'message': 'Данный метод не поддерживается'
+        })
+
+
+@app.route('/product_list', methods=['GET', 'POST']) #? Получение списка товаров из БД
+async def get_product_list():
+    if request.method == 'GET':
+
+        result = await database.get_product_list()
+
+        return jsonify(
+            {
+            'code': 200,
+            'message': result
+            })
+
+    return jsonify(
+        {
+        'code': 202,
+        'message': 'Данный метод не поддерживается'
+            })
 
 
 

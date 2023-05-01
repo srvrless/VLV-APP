@@ -38,13 +38,13 @@ class Database:
     
     async def accept_email(self, email): # Добавляем нового пользователя магазина
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        await conn.execute('''UPDATE categories SET email_accept = $1 WHERE email = $2;''', 'Verified', email)
+        await conn.execute('''UPDATE collections SET email_accept = $1 WHERE email = $2;''', 'Verified', email)
         await conn.close()
         return True
     
     async def accept_phone(self, email): # Добавляем нового пользователя магазина
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        await conn.execute('''UPDATE categories SET phone_accept = $1 WHERE email = $2;''', 'Verified', email)
+        await conn.execute('''UPDATE collections SET phone_accept = $1 WHERE email = $2;''', 'Verified', email)
         await conn.close()
         return True
     
@@ -87,7 +87,7 @@ class Database:
     
     async def get_category_id_by_title(self, title):
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        records = await conn.fetch('SELECT insales_id FROM categories WHERE title = $1', title)
+        records = await conn.fetch('SELECT insales_id FROM collections WHERE title = $1', title)
         await conn.close()
         values = [dict(record) for record in records]
         #print(values[0]['password'])
@@ -95,7 +95,7 @@ class Database:
     
     async def get_category_by_title(self, title):
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        records = await conn.fetch('SELECT insales_id FROM categories WHERE title = $1', title)
+        records = await conn.fetch('SELECT insales_id FROM collections WHERE title = $1', title)
         await conn.close()
         values = [dict(record) for record in records]
         #print(values[0]['password'])
@@ -117,9 +117,9 @@ class Database:
         values = [dict(record) for record in records]
         return values[0]
     
-    async def get_all_categories(self):
+    async def get_all_collections(self):
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        records = await conn.fetch('SELECT * FROM categories;')
+        records = await conn.fetch('SELECT * FROM collections;')
         await conn.close()
         values = [dict(record) for record in records]
         return values
@@ -150,17 +150,16 @@ class Database:
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
         records = await conn.fetch('''SELECT category_id FROM products WHERE insales_id = $1;''', produc_id)
         values_id = [dict(record) for record in records]
-        records = await conn.fetch('''SELECT title FROM categories WHERE insales_id = $1;''', int(values_id[0]['category_id']))
+        records = await conn.fetch('''SELECT title FROM collections WHERE insales_id = $1;''', int(values_id[0]['category_id']))
         await conn.close()
         values_title = [dict(record) for record in records]
         return values_id[0], values_title[0]
 
     
-    async def add_categories(self, insales_id, parent_id, title, position):
+    async def add_collections(self, insales_id, parent_id, title, description):
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        await conn.execute('''INSERT INTO categories (insales_id, parent_id, title, position) VALUES ($1, $2, $3, $4);''', insales_id, parent_id, title, position)
+        await conn.execute('''INSERT INTO collections (insales_id, parent_id, title, description) VALUES ($1, $2, $3, $4);''', insales_id, parent_id, title, description)
         await conn.close()
-        print('Information added')
         return True
     
     async def add_to_wishlist(self, email, product_id):
@@ -227,7 +226,7 @@ class Database:
                               product['description'], product['insales_id'], product['title'], json.loads(product['images']), product['variants'])
                               
         await conn.close()
-        print('Information added')
+        return True
 
         '''
         UPDATE
@@ -238,12 +237,12 @@ class Database:
                               str(product['size']), product['price'], product['description'], product['insales_id'], product['title'], product['images'])
         '''
     
-    async def update_categories(self, insales_id, parent_id, title, position):
+    async def update_collections(self, insales_id, parent_id, title, description):
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        await conn.execute('''INSERT INTO categories (insales_id, parent_id, title, position)
+        await conn.execute('''INSERT INTO collections (insales_id, parent_id, title, description)
                               VALUES ($1, $2, $3, $4) ON CONFLICT (isales_id) DO
-                              UPDATE SET isales_id = $5, parent_id = $6, title = $7, position = $8;''',
-                              insales_id, parent_id, title, position, insales_id, parent_id, title, position)
+                              UPDATE SET isales_id = $5, parent_id = $6, title = $7, description = $8;''',
+                              insales_id, parent_id, title, description, insales_id, parent_id, title, description)
         await conn.close()
         print('Information added')
         return True
