@@ -5,10 +5,12 @@ from quart import render_template
 from server_helpers.session_factory import SSession
 from server_helpers.token_factory import access_validation, refresh_validation, decrypt_and_get_email, access_creation, create_couple_by_email
 from database import Database
+from quart import abort
 
 
 
 app = Quart(__name__)
+
 ssession = SSession()
 database = Database()
 
@@ -113,6 +115,7 @@ def index():
     )
 
 
+
 '''
 ### Admin Pannel ###
 @app.route('/admin', methods=['GET', 'POST']) # Страница перехода на админпанель
@@ -167,10 +170,10 @@ def get_banners():
 # ? Алгоримт входа пользователя в приложение. Проверка его токенов. 
 
 
-app.route('login', methods=['GET', 'POST']) # ? Функция входа, а также принудительного входа, когда аксесс заканчивает свое действие. 
-async def login(): # Авторизация в приложении пользователя. 
-    if request.method == 'POST':
+@app.route('/login', methods=['POST'])
+async def login():
 
+    if request.method == 'POST':
         info = await request.get_json()
         email = info['email']
         password = info['password']
@@ -182,7 +185,7 @@ async def login(): # Авторизация в приложении пользо
             return jsonify(
                 {
                     'code': 200,
-                    'message': 'Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания',
+                     'message': 'Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания',
                     'access_token': result['access_token'],
                     'refresh_token': result['refresh_token']
                 }
@@ -195,14 +198,9 @@ async def login(): # Авторизация в приложении пользо
                     'message': 'Доступ закрыт. Возможно, неправильно введены данные пользователя для входа. Перепроверьте вводимые данные'
                 }
             )
-    
     else:
-        return jsonify(
-            {
-                'code': 400,
-                'message': 'Данный метод не поддерживается'
-            }
-        )
+        abort(400)
+
         
         
 
@@ -324,17 +322,30 @@ def email_confirm():
 
 
 
-app.route('registration', methods=['GET', 'POST'])
+app.route('registration', methods=['POST'])
 async def registration(): # Ввод личных данных при регистрации в приложении и запись данных в БД 
     if request.method == 'POST':
-        #! Запись в БД и создание токенов (всех необходимых)
-        pass
 
-    if request.method == 'GET':
-        return jsonify(400) # Выдавать ошибку, если приходит такой запрос
-    return jsonify(200)
+        info = await request.get_json()
+        if not all(k in info for k in ('username', 'email', 'password', 'city')):
+            return jsonify({'code': 400, 'message': 'Не хватает аргументов'})
+        
+        if await database.registration(info['username'], ['email'], ['password'], ['city'], ['billings'], ['wishlist']):
 
+            result = await create_couple_by_email(info['email'])
 
+            return jsonify(
+                {
+                    'code': 200,
+                     'message': 'Пользователь с email: {} успешно зарегистрирован'.format(info['email']),
+                    'access_token': result['access_token'],
+                    'refresh_token': result['refresh_token']
+                }
+            )
+        else:
+            abort(400)
+    
+        
 
 ### Конец регистрации ###
 
@@ -419,7 +430,7 @@ async def check_logged_in():
 
 '''
 
-
+'''
 @app.route('/personal_information', methods=['GET', 'POST']) #? модуль смены / обновления пользовательской персональной информации (основной)
 async def personal_information():
 
@@ -449,10 +460,10 @@ async def personal_information():
 
             email = await decrypt_and_get_email(refresh_token)
 
-            '''
-            Здесь код добавления всей этой информации в БД пользователя,
-            то есть обновление его информации
-            '''
+            
+            # Здесь код добавления всей этой информации в БД пользователя,
+            # то есть обновление его информации
+            
         
         else:
             return jsonify(
@@ -468,13 +479,13 @@ async def personal_information():
                 'message': 'Информация пользователя успешно обновлена'
             }
         )
-    
-
+'''
+'''
 @app.route('/extra_personal_information', methods=['GET', 'POST']) #? модуль добавления информации об адресе и о доставке
 async def extra_personal_information():
     #! Адрес доставки. Для добавления адреса доставки нужно обработать весь список городов, выдать самые релевантные варианты
     return
-
+'''
         
 
     

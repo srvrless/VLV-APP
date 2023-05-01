@@ -21,7 +21,7 @@ def get_data_fromfile():
         return data 
 
 
-@file_decorator.close_file_decorator
+@file_decorator.write_file_decorator
 def put_data_tofile(data):
     with open('sessions.json', 'w') as session_file:
         json.dumps(session_file, data)

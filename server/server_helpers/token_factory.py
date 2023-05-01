@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from server_exceptions import EmptyDataError, TokenValidationError
 import json
 from cryptography.fernet import Fernet
 import asyncio
@@ -14,92 +13,140 @@ token_decorate = Decorate()
 
 
 
+# Custom Class for handle the exceptions. 
+
+
+
+class EmptyDataError(Exception): # Класс ошики, которая возникает при недостатке данных, передаваемых в функцию
+    def __init__(self,*args):
+        if args:
+            self.mmessage = args[0]
+        else:
+            self.mmessage = None
+    
+    def __str__(self):
+        if self.message:
+            return 'EmptyDataError, {0} '.format(self.message)
+        else:
+            return 'Important data missed. You should check the way of transmitting args to function'
+
+
+
+
+class TokenValidationError(Exception): # Класс ошики, которая возникает при недостатке данных, передаваемых в функцию
+    def __init__(self,*args):
+        if args:
+            self.mmessage = args[0]
+        else:
+            self.mmessage = None
+    
+    def __str__(self):
+        if self.message:
+            return 'TokenValidationError, {0} '.format(self.message)
+        else:
+            return 'Нельзя проверить токен по какой-либо причине. Необходимо скорректировать ваш запрос и/или проверить правильность вводимых данных.'
+
+
+
+
+
 class EncryptingService:
     def __init__(self):
-        return
+        pass
     
-    async def create_key(self):
+    async def generate_key(self):
+        """
+        Generates a Fernet key and saves it to a file named 'crypto.key'.
+        """
         key = Fernet.generate_key()
         with open('crypto.key', 'wb') as key_file:
             key_file.write(key)
     
     async def load_key(self):
-        # Загружаем ключ 'crypto.key' из текущего каталога
+        """
+        Loads a previously generated Fernet key from the file named 'crypto.key'.
+        """
         return await open('crypto.key', 'rb').read()
     
-    async def encrypt_phrase(self, my_str):
-        key = self.load_key()
-        f = Fernet(key)
-        token = await f.encrypt(my_str.encode())
-        return token
+    async def encrypt_string(self, my_str):
+        """
+        Encrypts a string parameter `my_str` using a Fernet key and returns the encrypted string.
+        """
+        key = await self.load_key()
+        fernet = Fernet(key)
+        encrypted_string = fernet.encrypt(my_str.encode())
+        return encrypted_string.decode()
     
-    async def decrypt_phrase(self, token):
-        key = self.load_key()
-        f = Fernet(key)
-        decrypted_data = await f.decrypt(token)
-        return decrypted_data.decode()
+    async def decrypt_string(self, encrypted_str):
+        """
+        Decrypts a string parameter `encrypted_str` using a Fernet key and returns the decrypted string.
+        """
+        key = await self.load_key()
+        fernet = Fernet(key)
+        decrypted_string = fernet.decrypt(encrypted_str.encode())
+        return decrypted_string.decode()
     
-    async def email_from_token(self, token):
-        return self.read(token).get('email')
+    async def get_email_from_token(self, token):
+        """
+        Given an encrypted token string, returns the email from the decrypted token.
+        """
+        decoded_token = await self.decrypt_string(token)
+        return decoded_token.split(':')[0]
     
-    async def expiration_data_from_token(self, token):
-        return self.read(token).get('expiration_date')
+    async def get_expiration_date_from_token(self, token):
+        """
+        Given an encrypted token string, returns the expiration date from the decrypted token.
+        """
+        decoded_token = await self.decrypt_string(token)
+        return decoded_token.split(':')[1]
+
 
 
 class Access(EncryptingService):
     def __init__(self):
-        return
+        super().__init__()  # you need to call the parent class' constructor
     
-    async def create_access_token(self, email): 
+    async def create_access_token(self, email):
         try:
-            access_token = await self.encrypt_phrase(json.dumps(
-                {
-                    'email': email, # по конкретной почте создается токен
+            access_token = await self.encrypt_phrase(
+                json.dumps({
+                    'email': email,  # remove the unnecessary newline character from here
                     'start_date': datetime.now().isoformat(),
-                    'expiration_date': (datetime.now() + timedelta(days=1)).isoformat() # создается на 24 часа
-                }))
-            return jsonify(
-                {
+                    'expiration_date': (datetime.now() + timedelta(days=1)).isoformat(),
+                })
+            )
+            return {
                 'code': 200,
                 'message': 'Access_token создан успешно.',
-                'acess_token': access_token
-                }
-            )
+                'access_token': access_token,
+            }
         except Exception as e:
-            return jsonify(
-                {
-                    'code': 404,
-                    'message': 'Произошла ошибка при формировании access_token. Необходимо обратить внимание на функцию создания аксесс. Ошибка: {}'.format(e)
-                }
-            )
+            return {
+                'code': 404,
+                'message': f'Произошла ошибка при формировании access_token. Необходимо обратить внимание на функцию создания аксесс. Ошибка: {e}',
+            }
     
     async def validate_access_token(self, access_token):
-
-        try: 
-            email = await self.email_from_token(access_token)
+        try:
+            email = json.loads(await self.decrypt_phrase(access_token))['email']  # extract 'email' from the access_token
         except:
             raise Exception('Не удалось корректно расшифровать токен, либо email в нем отсутствует.')
-
-        if email is None: # Отправляется при ошибочной обработке функции и неполучении email из присланного токена. 
+        if not email: 
             return {
                 'code': 403,
-                'message': 'Нельзя прочитать токен, либо email отсутствует. Требуется повторная авторизация'
+                'message': 'Не удалось получить email из access_token. Необходимо повторно авторизоваться',
             }
-
-        differ = datetime.fromisoformat(self.expiration_data_from_token(access_token)) - datetime.now()
-
-        if differ.total_seconds() > 0:
-
-             return {
+        time_diff = datetime.fromisoformat(json.loads(await self.decrypt_phrase(access_token))['expiration_date']) - datetime.now()  # extract 'expiration_date' from the access_token
+        if time_diff.total_seconds() > 0:
+            return {
                 'code': 200,
-                'message': 'Токен действителен. Доступ открыт'
-                 }
-
-        else: 
+                'message': 'Токен действителен. Доступ открыт',
+            }
+        else:
             return {
                 'code': 405,
-                'message': 'Время действия токена уже истекло. Трубется обновление acess_token с помощью refresh_token'
-                }
+                'message': 'Время действия токена уже истекло. Требуется обновление access_token с помощью refresh_token',
+            }
 
 
 
@@ -194,32 +241,41 @@ async def refresh_validation(refresh_token):
     
 
 
-@token_decorate.access_decorator
-async def access_validation(access_token):
-    try:
-        # refresh_token = request.headers['refresh_token']
+from functools import wraps
+
+def access_decorator(func):
+    @wraps(func)
+    async def wrapper(request, *args, **kwargs):
+        access_token = request.headers.get('Authorization')
         if access_token is None or access_token == '':
             return jsonify(
-                {
-                    'code': 402,
-                    'message': 'Access token отсутствует. Запрос отклонен. Необходимо скорректировать запрос на сервер'
-                }
-            )
-    
+                        {
+                            'code': 402,
+                            'message': 'Access token отсутствует. Запрос отклонен. Необходимо скорректировать запрос на сервер'
+                        }
+                    )
+
         result = await Access().validate_access_token(access_token)
 
-        if result('code') == 200:
-            return True
+        if result['code'] == 200:
+            return await func(request, *args, **kwargs)
         else:
             return jsonify(
                 {
                     'code': 402,
                     'message': 'Токен недействителен'
                 }
-            )
-        
+            )    
+    return wrapper
+
+@access_decorator
+async def access_validation(request):
+    try:
+        return True
     except:
         raise TokenValidationError('Ошибка в декораторе или функции проверки данных токена')
+
+
 
 
 @token_decorate.access_decorator
