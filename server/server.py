@@ -242,6 +242,47 @@ async def update_products_in_database():
         })
 
 
+@app.route('/product_card', methods=['GET', 'POST']) #? Карточка товара по информации из БД
+# ? NoAuth
+async def get_product_id():
+    if request.method == 'GET':
+        title = request.args.to_dict()['title']
+
+        product_information = await database.get_product_by_title(title)
+        info_id, info_title = await database.get_category_title_and_id_by_product_id(product_information['insales_id'])
+        
+
+        return jsonify(
+            {
+                'code':200,
+                'product_info': product_information,
+                'category': info_title,
+                'category_id': info_id
+            })
+
+    return jsonify(
+        {
+        'code': 202,
+        'message': 'Данный метод не поддерживается'
+        })
+
+
+@app.route('/get_prod_from_coll_title', methods=['GET', 'POST']) #? Получение полного списка продуктов по названию конкретной категории
+async def get_products_from_category_title():
+    if request.method == 'GET':
+        category = request.args.to_dict()['category']
+
+        result = database.get_all_products_from_category_title(category)
+        return jsonify({
+            'code': 200,
+            'catalog': result
+            })
+
+    return jsonify({
+        'code': 202,
+        'message': 'Данный метод не поддерживается'
+        })
+
 
 @app.route('/product_list', methods=['GET', 'POST']) #? Получение списка товаров из БД
 async def get_product_list():
@@ -365,15 +406,30 @@ async def create_refresh_by_email(): # GET
     return jsonify(200)
 
 # ! Сервисный метод. Не использовать в общем алгоритме. Вызывается при возникновении ошибок, либо при принудительном игнорировании алгоритма
-app.route('/create_access_by_email', methods=['GET', 'POST']) #? Отдельный метод для создания аксесс-токена
+@app.route('/create_access_by_email', methods=['GET', 'POST']) #? Отдельный метод для создания аксесс-токена
 async def create_access_by_email(): # GET 
     #TODO Передавать параметром email для создания нового аксесса
     return jsonify(200)
 
-app.route('/create_access_by_refresh', methods=['GET', 'POST']) #? Ручка обновления аксесс-токена
+@app.route('/create_access_by_refresh', methods=['GET', 'POST']) #? Ручка обновления аксесс-токена
 def create_access_by_refresh(): # GET 
     #TODO Передавать в контексте рефреш, по которому нужно будет все обновить
     return jsonify(200)
+
+
+@app.route('/create_couple_by_email', methods=['GET', 'POST']) #? Обноление пары токенов
+async def update_couple(): # GET 
+
+    info = await request.get_json()
+    email = info['email']
+
+    result = await create_couple_by_email(email)
+
+    return jsonify({
+            'code': 200,
+            'acess_token': result['access_token'],
+            'refresh_token': result['refresh_token']
+        })
 
 
 ### Конец сервисных методов ###
@@ -383,17 +439,6 @@ def create_access_by_refresh(): # GET
 #? Все, что связано с профилем пользователя, выдача информации / редактирование информации
 
 ### Конец методов работы с профилем пользователя ###
-
-### Дополнительные методы ###
-#? Рекомендации по уходу, о нас, магазины и тд. Все, что может быть дополнительным
-
-
-### Конец дополнительных методов ###
-
-
-### Методы работы с магазином ###
-#? Все, что касается магазина, товаров, заказов
-
 
 
 if __name__ == '__main__':
