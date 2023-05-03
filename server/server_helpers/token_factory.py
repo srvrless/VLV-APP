@@ -2,18 +2,35 @@ from datetime import datetime, timedelta
 import json
 from cryptography.fernet import Fernet
 import asyncio
-from decorate import Decorate
 from quart import jsonify
 # Production of tokens for users
 
 
 
-token_decorate = Decorate()
-
-
-
-
-# Custom Class for handle the exceptions. 
+class Decorate:
+    def __init__(self):
+        return
+    
+    def refresh_decorator(self, func):
+        def check_refresh_validation():
+            func()
+        return check_refresh_validation
+    
+    
+    def token_service_decorator(self, func):
+        def get_email_from_token():
+            func()
+        return get_email_from_token
+    
+    def open_file_decorator(self, func):
+        def open_file():
+            func()
+        return open_file
+    
+    def write_file_decorator(self, func):
+        def write_file():
+            func()
+        return write_file
 
 
 
@@ -137,15 +154,9 @@ class Access(EncryptingService):
             }
         time_diff = datetime.fromisoformat(json.loads(await self.decrypt_string(access_token))['expiration_date']) - datetime.now()  # extract 'expiration_date' from the access_token
         if time_diff.total_seconds() > 0:
-            return {
-                'code': 200,
-                'message': 'Токен действителен. Доступ открыт',
-            }
+            return True
         else:
-            return {
-                'code': 405,
-                'message': 'Время действия токена уже истекло. Требуется обновление access_token с помощью refresh_token',
-            }
+            return False
 
 
 
@@ -214,7 +225,10 @@ class Refresh(Access):
             
             return asyncio.run(self.create_access_token(email))
     
-    
+
+token_decorate = Decorate()
+
+
 @token_decorate.refresh_decorator
 async def refresh_validation(refresh_token):
     try:
@@ -270,15 +284,6 @@ def access_decorator(func):
                 }
             )    
     return wrapper
-
-@access_decorator
-async def access_validation(request):
-    try:
-        return True
-    except:
-        raise TokenValidationError('Ошибка в декораторе или функции проверки данных токена')
-
-
 
 
 @token_decorate.access_decorator

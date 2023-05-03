@@ -2,11 +2,10 @@ from quart import Quart
 from quart import jsonify
 from quart import request
 from quart import render_template
-from server_helpers.session_factory import SSession
-from server_helpers.token_factory import access_validation, refresh_validation, decrypt_and_get_email, access_creation, create_couple_by_email
+from server_helpers.token_factory import create_couple_by_email
 from database import Database
 from quart import abort
-from bs4 import BeautifulSoup
+from server_helpers.tools import html_parser
 import json
 import requests
 
@@ -14,7 +13,6 @@ import requests
 
 app = Quart(__name__)
 
-ssession = SSession()
 database = Database()
 insales_url = 'https://26c60c2c500a6c6f1af7aa91d11c197c:a5f07ba6e0c4738819d1ba910731db57@myshop-bte337.myinsales.ru/admin'
 
@@ -54,85 +52,6 @@ insales_url = 'https://26c60c2c500a6c6f1af7aa91d11c197c:a5f07ba6e0c4738819d1ba91
 #TODO Записать в БД статус электронной почты (код)
 # TODO Отправка уведомдения о том, что код был неверный (если его ввели неверно)
 
-
-# ? Данный метод можно смело применять при любом авторизованном запросе
-async def token_process(access_token, refresh_token): # ? Функция, которая отвечает за проверку подленности токена
-    # info = await request.get_json()
-    result = await access_validation(access_token) 
-
-    if result is not True:
-        if not refresh_token or refresh_token == '' or len(refresh_token) == 0:
-            return jsonify({
-                    'code': 203,
-                    'message': 'Необходимо передать в запрос refresh_token. Он должен быть ненулевой для того, чтобы проверка прошла необходимым образом'
-                })
-        result = await refresh_validation(refresh_token)
-
-        if result is not True:
-            return jsonify({
-                    'code': 401,
-                    'message': 'Доступ закрыт. Необходимо авторизоваться повторно для создание новой пары refresh-access'
-                })
-            
-        else:
-            new_access_token = await access_creation(access_token)
-            return jsonify({
-                    'code': 201,
-                    'message': 'Рефреш-токен действителен. Необходимо обновить access_token',
-                    'access_token': new_access_token
-                })
-        
-    elif result:
-        return True
-    
-    else:
-        return False
-    
-
-async def token_validate_process(result):
-    if isinstance(result, bool):
-        if result:
-            return jsonify({
-                'code': 200,
-                'message': 'Authorization method passed successfully'
-            })
-        else:
-            return jsonify({
-                'code': 406,
-                'message': 'General error while processing user token information'
-            })
-    else:
-        code = result.get('code')
-        if code == 401:
-            return jsonify({
-                'code': 405,
-                'message': 'Need to reauthorize to update the pair'
-            })
-        elif code == 201:
-            return jsonify({
-                'code': 405,
-                'message': 'Access with the new access_token generated is required',
-                'new_access_token': result['access_token']
-            })
-        elif code == 203:
-            return jsonify({
-                'code': 405,
-                'message': 'refresh_token is also required to authorize the method'
-            })
-
-
-
-def html_parser(html_document):
-        try:
-            soup = BeautifulSoup(html_document, 'html.parser')
-            text = soup.get_text()
-            text = text.replace('Описание', '')
-            text = text.replace('  ', '')
-            return text
-        except TypeError: return ''
-
-
-### Start app. Configuration parametres. ###
 
 
 @app.route('/')
