@@ -90,7 +90,6 @@ class Database:
         records = await conn.fetch('SELECT insales_id FROM collections WHERE title = $1', title)
         await conn.close()
         values = [dict(record) for record in records]
-        #print(values[0]['password'])
         return values[0]['insales_id']
     
     async def get_category_by_title(self, title):
@@ -125,7 +124,7 @@ class Database:
         return values
     
     async def get_all_products_from_category_title(self, title): # by title
-        category_id = await self.get_category_id_by_title(title)
+        category_id = await self.get_category_id_by_title(title) # Выдает insales id
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
         records = await conn.fetch('''SELECT * FROM products WHERE category_id = $1;''', category_id)
         await conn.close()

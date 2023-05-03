@@ -163,6 +163,21 @@ async def update_collections_in_database():
             }
         )
 
+
+@app.route('/get_prod_shop', methods=['GET'])
+async def get_prod_shop():
+
+    if request.method == 'GET':
+        prod_box = []
+        for page in range(1, 201):
+            prod_box.append(requests.get(insales_url + '/' + 'products.json', params={'page_sise': 100, 'page': page}).json())
+
+        return jsonify({
+            'coee': 200,
+            'info': prod_box
+        })
+
+    
 @app.route('/update_prod_db', methods=['GET'])
 async def update_products_in_database():
     if request.method == 'GET':
@@ -177,6 +192,7 @@ async def update_products_in_database():
             size = ''
             price = ''
             info = requests.get(insales_url + '/' + 'products.json', params={'page_sise': 100, 'page': page}).json()
+            
             for i in info:
                 try:
                     for q in i['images']:
@@ -272,7 +288,15 @@ async def get_products_from_category_title():
     if request.method == 'GET':
         category = request.args.to_dict()['category']
 
-        result = database.get_all_products_from_category_title(category)
+        try:
+            result = await database.get_all_products_from_category_title(category)
+            
+        except Exception as e:
+            return jsonify({
+                    'code': 403,
+                    'message': 'Возможно, нет категории под таким названием'
+                })
+        
         return jsonify({
             'code': 200,
             'catalog': result
