@@ -1,7 +1,10 @@
 
 import asyncpg
 import json
-from service import encrypt_string, decrypt_string
+from service import TokenProcess
+
+
+token_process = TokenProcess()
 
 class Database:
     
@@ -23,7 +26,7 @@ class Database:
         except Exception as e:
             print(e, 'Ошибка в процессе получения данных о зарегистрированных пользователях. Регистрация продолжается')
             
-        password = await encrypt_string(password)
+        password = await token_process.encrypt_string(password)
         email_accept = 'Unverified'
         phone_accept = 'Unverified'
 
@@ -70,7 +73,7 @@ class Database:
         
         # TODO Заменить на блок отлавливания ошибок
 
-        if password == await decrypt_string(values[0]['password']):
+        if password == await token_process.decrypt_string(values[0]['password']):
             return True
         else:
             return False #result = json.dumps(values).replace('\\', '')

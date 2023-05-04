@@ -92,7 +92,6 @@ class TokenProcess:
         refresh_token = refresh_token['refresh_token']
         access_token = await self.create_token(email, 'access')
         access_token = access_token['access_token']
-
         return {'access_token': access_token, 'refresh_token': refresh_token}
 
 async def create_acess_by_refresh(self, refresh_token): #? Необходимо передавать сюда refresh_token
@@ -100,7 +99,7 @@ async def create_acess_by_refresh(self, refresh_token): #? Необходимо 
 
     if result('code') == 200:
         email = await self.email_from_token(refresh_token)
-    return await create_token(email, 'access')
+    return await self.create_token(email, 'access')
 
 async def token_validate_process(result):
     """
@@ -127,14 +126,14 @@ async def token_validate_process(result):
                 'message': 'refresh_token is also required to authorize the method'
             })
 
-async def token_process(access_token, refresh_token):
+async def token_process(self, access_token, refresh_token):
     """
     Функця проверки токенов. Передает result к дальнейшей проверки
     """
-    result = await validate_token(access_token) 
+    result = await self.validate_token(access_token) 
 
     if result is not True:
-        result = await validate_token(refresh_token)
+        result = await self.validate_token(refresh_token)
 
         if result is not True:
             return jsonify({

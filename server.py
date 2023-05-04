@@ -1,7 +1,7 @@
 from quart import Quart
 from quart import jsonify
 from quart import request, abort
-from service import create_couple
+from service import TokenProcess
 from config import INSALES_URL
 from database import Database
 import requests
@@ -9,9 +9,6 @@ import json
 from tools import html_parser
 
 
-# TODO Функция сохранения истории покупок
-# TODO Добавить для пользователя позицию в БД, чтобы добавлять id в историю покупок
-# TODO Сделать функцию временного хранения тех товаров, которые пользователь просматривает (какими товарами интересуется)
 #TODO Для создания повышенного уровня защиты, необходимо внедрить проверку на пользователя: Есть ли этот пользователь в БД или нет.
 # TODO Добавлеие новых баннеров в БД
 # TODO Вывод товаров из БД, чтобы их отображать на странице
@@ -27,7 +24,6 @@ from tools import html_parser
     # Это должна быть отдельная таблица, в которой все это будет обрабатываться. Чтобы всю 
     # информацию можно было бы оттуда брать. И выдвать на экране
 
-
 #TODO: сделать метод смены электронной почты с подтверждением через письмо также, как и было при регистрации
 #TODO: сделать метод подтверждения номера телефона через смс, как и положено ----> подключиь для этого сторонний смс сервис
 #TODO: Сделать метод удаления профиля
@@ -40,6 +36,7 @@ from tools import html_parser
 
 app = Quart(__name__)
 database = Database()
+token_process = TokenProcess()
 
 
 @app.route('/', methods=['GET'])
@@ -54,14 +51,18 @@ def index():
 async def shop_collections():
 
     info = requests.get(INSALES_URL + '/' + 'collections.json').json()
-
     return jsonify({'code': 200, 'catalog': info})
 
 
 @app.route('/token_couple', methods=['POST'])
 # Создание пары токенов по конкретному email
-def token_couple():
-    return 
+async def token_couple():
+    info = await request.get_json()
+    result = await token_process.create_couple(info.get('email'))
+    return jsonify({
+        'code': 200,
+        'access_token': result['access_token'],
+        'refresh_token': result['refresh_token']})
 
 
 @app.route('/update_coll_db', methods=['GET'])
@@ -80,7 +81,6 @@ async def update_collections_in_database():
 def get_products():
     catalog = []
     page = 0
-
     try:
         while True:
             page += 1
@@ -171,11 +171,8 @@ async def db_collections():
     """
     Получение коллекций из БД
     """
-    if request.method == 'GET':
-        result = await database.get_all_collections()
-        return jsonify({'code': 200, 'message': result})
-
-    return jsonify({'code': 202, 'message': 'Данный метод не поддерживается' })
+    result = await database.get_all_collections()
+    return jsonify({'code': 200, 'message': result})
 
 
 @app.route('/db_products', methods=['GET'])
@@ -220,6 +217,48 @@ async def collection_bytitle():
     return jsonify({'code': 200,'catalog': result})
 
 
+@app.route('/get_shop_products_by_collection', methods=['GET'])
+async def get_products_by_collection():
+    """
+    Получение продуктов по категории напрямую с магазина
+    """
+    info = await request.get_json()
+    collection_id = info['collection_id']
+    return requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': collection_id}).json()
+
+
+@app.route('/get_shop_collections_by_product', methods=['GET'])
+async def get_collections_by_product():
+    """
+    Получение коллекций по указанию ID продукта напрямую из магазина
+    """
+    info = await request.get_json()
+    product_id = info['product_id']
+    return requests.get(INSALES_URL + '/' + 'collects.json', params={'product_id': product_id}).json()
+
+
+@app.route('/get_shop_collection', methods=['GET'])
+async def get_collections_by_product():
+    """
+    Получение полной информации о коллекции напрямую из магазина
+    """
+    info = await request.get_json()
+    collection_id = info['collection_id']
+    return requests.get(INSALES_URL + '/' + 'collections/{}.json'.format(collection_id)).json()
+
+
+@app.route('/get_all_shop_collections', methods=['GET'])
+async def get_all_shop_collections():
+    """
+    Получение всех коллекций из магазина напрямую
+    """
+    return requests.get(INSALES_URL + '/' + 'collections.json').json()
+
+
+@app.route('/get_db_products_by_collection', methods=['GET'])
+def get_products_by_collection():
+    return 
+
 
 @app.route('/registration', methods=['POST'])
 # Регистрация нового пользователя
@@ -231,7 +270,7 @@ async def registration():
             return jsonify({'code': 400, 'message': 'Не хватает аргументов'})
         
         if await database.registration(info['username'], info['email'], info['password'], info['city'], info['billings'], info['wishlist']):
-            result = await create_couple(info['email'])
+            result = await token_process.create_couple(info['email'])
 
             return jsonify({
                     'code': 200,
@@ -268,7 +307,7 @@ async def login():
 
         if await database.login(email, password):
 
-            result = await create_couple(email)
+            result = await token_process.create_couple(email)
 
             return jsonify({
                     'code': 200,
@@ -295,8 +334,6 @@ async def get_info():
     """
     info = await request.get_json()
     access_token = info.get('access_token')
-
-
 
 
 @app.route('/offer', methods=['POST'])
@@ -353,7 +390,6 @@ def get_fromcart():
     return jsonify({
         'code': 200, 'message': 'Тут будут категории'
         })
-
 
 
 
