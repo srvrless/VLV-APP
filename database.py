@@ -217,13 +217,13 @@ class Database:
         return True
 
 
-
     async def update_products(self, product):
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        await conn.execute('''INSERT INTO products (available, category_id, material, colour, brand, size, price, description, insales_id, title, images, variants_id)
-                              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);''',product['available'], product['category_id'],
+        await conn.execute('''INSERT INTO products (available, category_id, material, colour, brand, size, price, description, insales_id, title, images, variants_id, collection_ids)
+                              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                              ON CONFLICT DO NOTHING/UPDATE;''',product['available'], product['category_id'],
                               product['material'], product['colour'], product['brand'], str(product['size']), product['price'],
-                              product['description'], product['insales_id'], product['title'], json.loads(product['images']), product['variants'])
+                              product['description'], product['insales_id'], product['title'], json.loads(product['images']), product['variants'], product['collection_ids'])
                               
         await conn.close()
         return True
