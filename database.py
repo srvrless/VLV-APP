@@ -1,9 +1,7 @@
 
 import asyncpg
-from cryptography.fernet import Fernet
 import json
-from server_helpers.token_factory import EncryptingService
-
+from service import encrypt_string, decrypt_string
 
 class Database:
     
@@ -25,7 +23,7 @@ class Database:
         except Exception as e:
             print(e, 'Ошибка в процессе получения данных о зарегистрированных пользователях. Регистрация продолжается')
             
-        password = await EncryptingService().encrypt_string(password)
+        password = await encrypt_string(password)
         email_accept = 'Unverified'
         phone_accept = 'Unverified'
 
@@ -72,7 +70,7 @@ class Database:
         
         # TODO Заменить на блок отлавливания ошибок
 
-        if password == await EncryptingService().decrypt_string(values[0]['password']):
+        if password == await decrypt_string(values[0]['password']):
             return True
         else:
             return False #result = json.dumps(values).replace('\\', '')
