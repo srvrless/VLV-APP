@@ -106,8 +106,11 @@ async def update_db():
             products = requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': i['id']}).json()
 
             for product in products:
-
-                info = requests.get(INSALES_URL + '/' + 'products/{}.json'.format(product['product_id'])).json() #!!!!
+                try:
+                    info = requests.get(INSALES_URL + '/' + 'products/{}.json'.format(product['product_id'])).json()
+                except Exception as e:
+                    print(e)
+                    continue
                 material = '' 
                 colour = ''
                 brand = ''
@@ -135,11 +138,15 @@ async def update_db():
                         size = [s.replace(' ', '') for s in size]
                         try: size = [float(s) for s in size]
                         except: pass
+
+                
+                #lol = json.dumps(info['collections_ids'])
+                #print(type(lol))
                 
                 product_info = {
                         'available': str(info['available']),
                         'category_id': info['category_id'],
-                        'collection_ids': info['collection_ids'],
+                        'collections_ids': json.dumps(info['collections_ids']),
                         'material': material, 'colour': colour,
                         'brand': brand, 'size': size,
                         'price': int(float(info['variants'][0]['base_price'])), 
