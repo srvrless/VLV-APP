@@ -5,8 +5,92 @@ from service import TokenProcess
 from config import INSALES_URL
 from database import Database
 import requests
-import json
+import threading
+import time
 from tools import html_parser
+import asyncio
+import requests
+import json
+
+
+class DatabaseProcess:
+    def __init__(self):
+        return
+    
+    async def get_product_list(self, collection_id):
+        # Получение полного списка продуктов по данной категории
+        return requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': str(collection_id)}).json() #?
+    
+    async def product_listing(self, collection_id): # ollection_id=20742662
+        # Получение информации по данному продукту в очереди
+        info = await self.get_product_list(collection_id)
+        for i in info:
+            try:
+                product_information = requests.get(INSALES_URL + '/' + 'products/{}.json'.format(i['product_id'])).json()
+                result = await self.product_updating(product_information)
+                if result: pass # ? else... 
+            except Exception as e:
+                print(e)
+                continue
+        return True
+
+    async def product_updating(self, product_information):
+
+        material = '' 
+        colour = ''
+        brand = ''
+        size = ''
+        image = ''
+
+        images = product_information['images']
+        for im in images:
+            image = im['original_url']
+            break
+        
+        for t in product_information['characteristics']:
+            # Материал
+            if t['property_id'] == 40865551: material = t['title']
+            # Цвет
+            elif t['property_id'] == 37399009: colour = t['title']
+            # Бренд
+            elif t['property_id'] == 35926723: brand = t['title']
+            #? Размер
+            elif t['property_id'] == 35932191: size = t['title']
+                #elif t['property_id'] == 35934755: price = t['title']
+                
+        if len(size) != 0 or size != '' or size is not None:
+            if type(size) != list:
+                size = size.split(',')
+                size = [s.replace(' ', '') for s in size]
+                try: size = [float(s) for s in size]
+                except: pass
+
+                
+                #lol = json.dumps(info['collections_ids'])
+                #print(type(lol))
+        
+        
+        product_card = {
+                'available': str(product_information['available']),
+                'category_id': product_information['category_id'],
+                'collections_ids': json.dumps(product_information['collections_ids']),
+                'material': material, 'colour': colour,
+                'brand': brand, 'size': size,
+                'price': int(float(product_information['variants'][0]['base_price'])), 
+                'description': html_parser(product_information['description']),
+                'insales_id': product_information['id'], 'title': product_information['title'],
+                'variants': [ii['id'] for ii in product_information['variants']],
+                'images': image
+                        }
+        result = await Database().update_products(product_card)
+
+    def between_callback(self, collection_id):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        loop.run_until_complete(self.product_listing(collection_id))
+        loop.close()
+
 
 
 #TODO Для создания повышенного уровня защиты, необходимо внедрить проверку на пользователя: Есть ли этот пользователь в БД или нет.
@@ -39,23 +123,36 @@ database = Database()
 token_process = TokenProcess()
 
 
+
+
+
+
 @app.route('/', methods=['GET'])
-# Тест сервера
 def index():
+    '''
+    Тестирование сервера (связи с сервером).
+    Получение конфигурации сервера
+    '''
     return jsonify({
-        'code': 200, 'message': 'Тест сервера'})
+        'code': 200, 'message': 'Конфигурация нормальная. Сервер ждет команд'})
 
 
 @app.route('/shop_collections', methods=['GET'])
-# Получение коллекций напрямую из магазина
 async def shop_collections():
+    '''
+    Получение коллекций напрямую из магазина
+    '''
     info = requests.get(INSALES_URL + '/' + 'collections.json').json()
     return jsonify({'code': 200, 'catalog': info})
 
 
 @app.route('/token_couple', methods=['POST'])
-# Создание пары токенов по конкретному email
 async def token_couple():
+    '''
+    Получение пары токенов для email
+    # TODO: сделать метод проверки достоверности access для защиты данного метода
+    #? Если токен действителен, то отправлять сразу пару
+    '''
     info = await request.get_json()
     result = await token_process.create_couple(info.get('email'))
     return jsonify({
@@ -66,6 +163,10 @@ async def token_couple():
 
 @app.route('/update_collections_db', methods=['GET'])
 async def update_collections_db():
+    '''
+    Обновление всех коллекций в БД
+    # TODO: Почистить описание коллекций от различного рода "HTML - мусора"
+    '''
     info = requests.get(INSALES_URL + '/' + 'collections.json').json()
     for i in info:
         result = await database.add_collections(i['id'], i['parent_id'], i['title'], str(i['description']))
@@ -75,9 +176,11 @@ async def update_collections_db():
     return jsonify({'code': 200, 'message': 'Все коллекции успешно добавлены'})
 
          
-@app.route('/get_products', methods=['GET'])
-# Обноелние / запись пролуктов в БД
+@app.route('/shop_products', methods=['GET'])
 def get_products():
+    '''
+    Получение всех продуктов из БД
+    '''
     catalog = []
     page = 0
     try:
@@ -95,78 +198,6 @@ def get_products():
         return jsonify({'coee': 200, 'catalog': catalog})
 
 
-@app.route('/update_db', methods=['GET'])
-# Обноелние / запись пролуктов в БД
-async def update_db():
-    info = requests.get(INSALES_URL + '/' + 'collections.json').json()
-    for i in info:
-        result = await database.add_collections(i['id'], i['parent_id'], i['title'], str(i['description']))
-
-        if result:
-            products = requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': i['id']}).json()
-
-            for product in products:
-                try:
-                    info = requests.get(INSALES_URL + '/' + 'products/{}.json'.format(product['product_id'])).json()
-                except Exception as e:
-                    print(e)
-                    continue
-                material = '' 
-                colour = ''
-                brand = ''
-                size = ''
-
-                images = info['images']
-                for im in images:
-                    image = im['original_url']
-                    break
-        
-                for t in info['characteristics']:
-                    # Материал
-                    if t['property_id'] == 40865551: material = t['title']
-                    # Цвет
-                    elif t['property_id'] == 37399009: colour = t['title']
-                    # Бренд
-                    elif t['property_id'] == 35926723: brand = t['title']
-                    #? Размер
-                    elif t['property_id'] == 35932191: size = t['title']
-                        #elif t['property_id'] == 35934755: price = t['title']
-                
-                if len(size) != 0 or size != '' or size is not None:
-                    if type(size) != list:
-                        size = size.split(',')
-                        size = [s.replace(' ', '') for s in size]
-                        try: size = [float(s) for s in size]
-                        except: pass
-
-                
-                #lol = json.dumps(info['collections_ids'])
-                #print(type(lol))
-                
-                product_info = {
-                        'available': str(info['available']),
-                        'category_id': info['category_id'],
-                        'collections_ids': json.dumps(info['collections_ids']),
-                        'material': material, 'colour': colour,
-                        'brand': brand, 'size': size,
-                        'price': int(float(info['variants'][0]['base_price'])), 
-                        'description': html_parser(info['description']),
-                        'insales_id': info['id'], 'title': info['title'],
-                        'variants': [ii['id'] for ii in info['variants']],
-                        'images': image
-                        }
-
-                result = await database.update_products(product_info)
-        
-        return jsonify({
-            'code': 200,
-            'message': 'Все продукты и категории были успешно обновлены в БД.'})
-
-    return jsonify({'code': 405,
-        'message': 'The method specified in the request is not allowed for the resource identified by the request URI.'})
-
-
-
 @app.route('/db_collections', methods=['GET'])
 async def db_collections():
     """
@@ -177,30 +208,36 @@ async def db_collections():
 
 
 @app.route('/db_products', methods=['GET'])
-# Получение продуктов из БД
 async def db_products():
+    """
+    Получение всех продуктов из БД
+    """
     result = await database.get_product_list()
     return jsonify({'code': 200, 'message': result})
 
 
 @app.route('/product_byid', methods=['GET'])
-# Получение информации о конкретном товаре по ID - товара
 async def product_byid():
-    title = request.args.to_dict()['title']
-    product_information = await database.get_product_by_title(title)
-    info_id, info_title = await database.get_category_title_and_id_by_product_id(product_information['insales_id'])
+    """
+    Получение информации о продукте из БД по его ID (Insales ID)
+    """
+    info = await request.get_json()
+    insales_id = info['insales_id']
+    product_information = await database.get_product_from_db_byid(insales_id)
+    #info_id, info_title = await database.get_category_title_and_id_by_product_id(product_information['insales_id'])
         
     return jsonify({
-        'code':200, 'product_info': product_information,
-        'category': info_title, 'category_id': info_id})
+        'code':200, 'product_info': product_information})
+        #'category': info_title, 'category_id': info_id})
 
 
 @app.route('/collection_byid', methods=['GET'])
-# Получение товаров из коллекции по ID
 def collection_byid():
+    """
+    Получение коллекции из БД по ее ID
+    """
     return jsonify({
-        'code': 200, 'message': 'Тут будут категории'
-        })
+        'code': 200, 'message': 'Тут будут категории'})
 
 
 @app.route('/collection_bytitle', methods=['GET'])
@@ -217,6 +254,38 @@ async def collection_bytitle():
         
     return jsonify({'code': 200,'catalog': result})
 
+
+@app.route('/update_db', methods=['GET'])
+# Обноелние / запись пролуктов в БД
+async def update_db():
+    info = requests.get(INSALES_URL + '/' + 'collections.json').json()
+    for i in info:
+        result = await database.add_collections(i['id'], i['parent_id'], i['title'], str(i['description']))
+        if result: continue
+        else: return jsonify({'code': 400,'message':'Ошибка в добавлении категории в БД'})
+    print('Все коллекции в БД обновлены. Старт заполнения товаров')
+    
+    collections = await database.get_collections_id_from_db()    
+    collections = [coll['insales_id'] for coll in collections]
+
+    '''
+    for coll in collections:
+        print(coll)
+        t = threading.Thread(target=DatabaseProcess().between_callback, args=(coll,))
+        t.start()
+        print('Поток для {} категории запущен'.format(coll))
+
+    return jsonify({'code': 200,
+        'message': 'Проверка'})
+    '''
+
+    for coll in collections:
+        result = await DatabaseProcess().product_listing(coll)
+        if result: pass
+        print('Добавлено')
+    
+    return jsonify({'code': 200,
+        'message': 'Проверка'})
 
 @app.route('/get_shop_products_by_collection', methods=['GET'])
 async def get_products_by_collection():

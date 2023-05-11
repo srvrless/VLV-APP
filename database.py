@@ -269,13 +269,20 @@ class Database:
             return []
         return values[0]['wishlist']
     
-    async def product_from_db_by_id(self, product_id):
+    async def get_product_from_db_byid(self, product_id):
         conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
         records = await conn.fetch('''SELECT * FROM products WHERE insales_id = $1;''', product_id)
         await conn.close()
         values = [dict(record) for record in records]
-        print(values)
         return values
+    
+    async def get_collections_id_from_db(self):
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        records = await conn.fetch('''SELECT insales_id FROM collections;''')
+        await conn.close()
+        values = [dict(record) for record in records]
+        return values
+
     
 
 
