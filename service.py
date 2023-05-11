@@ -4,7 +4,6 @@ from cryptography.fernet import Fernet
 from quart import jsonify
 
 
-
 class TokenProcess:
     def __init__(self):
         return

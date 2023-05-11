@@ -5,12 +5,11 @@ from service import TokenProcess
 from config import INSALES_URL
 from database import Database
 import requests
-import threading
-import time
 from tools import html_parser
 import asyncio
 import requests
 import json
+from email_processing import EmailProcessing
 
 
 class DatabaseProcess:
@@ -121,9 +120,6 @@ class DatabaseProcess:
 app = Quart(__name__)
 database = Database()
 token_process = TokenProcess()
-
-
-
 
 
 
@@ -330,17 +326,51 @@ def get_db_products_by_collection():
     return 
 
 
+@app.route('/send_email', methods=['GET'])
+async def email_confirm():
+    '''
+    Подтверждение электронной почты. Если код, отправленный и введенный совпадают, то пользователь может выполнить регистрацию.
+    Для повторного запроса вызывается тот же самый метод. 
+    '''
+    info = await request.get_json()
+    email_aim = info['email']
+
+    result = await EmailProcessing().send_email(email_aim)
+    return jsonify({
+        'code': 200,
+        'message': 'Код успешно отправлен {}'.format(email_aim),
+        'verification_code': result 
+    })
+
+
 @app.route('/registration', methods=['POST'])
-# Регистрация нового пользователя
 async def registration(): 
+    """
+    Регистрация производися уже непосредственно после того, как почта пользователя была подтверждена.
+    Вначале переменные хранятся локально, чтобы затем их передать в данный запрос.
+    """
     if request.method == 'POST':
 
         info = await request.get_json()
-        if not all(k in info for k in ('username', 'email', 'password', 'city')):
+        if not all(k in info for k in ('name', 'surname', 'middlename', 'email', 'password', 'city', 'phone')):
             return jsonify({'code': 400, 'message': 'Не хватает аргументов'})
         
-        if await database.registration(info['username'], info['email'], info['password'], info['city'], info['billings'], info['wishlist']):
+        if await database.registration(info['name'], info['email'], info['password'], info['city'], info['orders'], info['wishlist']):
             result = await token_process.create_couple(info['email'])
+            
+            # Регистрация нового пользователя в InSales
+            if result:
+                return requests.post(INSALES_URL + '/' + 'clients.json',json={
+            'client': {
+                'name': info['name'],
+                'surname': info['surname'],
+                'middlename': info['middlename'],
+                'registered': True,
+                'email': info['email'],
+                'password': info['password'],
+                'phone': info['phone'],
+                'type': 'Client::Individual'
+                }}).json()
 
             return jsonify({
                     'code': 200,
@@ -350,21 +380,6 @@ async def registration():
                 })
         else:
             abort(400)
-
-
-@app.route('/email_confirm', methods=['GET', 'POST'])
-def email_confirm():
-    return jsonify(200)
-
-
-@app.route('/email_code_repeat', methods=['GET', 'POST'])
-def email_code_repeat(): # Повторная отправка email, если оно не пришло или было отправлено некорректно
-    return jsonify(200)
-
-
-app.route('/email_code', methods=['GET', 'POST'])
-def email_code(): 
-    return jsonify(200)
 
 
 @app.route('/login', methods=['POST'])
