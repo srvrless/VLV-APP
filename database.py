@@ -282,6 +282,13 @@ class Database:
         await conn.close()
         values = [dict(record) for record in records]
         return values
+    
+    async def get_collection_by_id(self, collection_id):
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        records = await conn.fetch('''SELECT * FROM collections WHERE insales_id = $1;''', collection_id)
+        await conn.close()
+        values = [dict(record) for record in records]
+        return values
 
     
 

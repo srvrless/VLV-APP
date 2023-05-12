@@ -10,6 +10,7 @@ import asyncio
 import requests
 import json
 from email_processing import EmailProcessing
+from sessions_processing import SessionProcessing
 
 
 class DatabaseProcess:
@@ -157,6 +158,17 @@ async def token_couple():
         'refresh_token': result['refresh_token']})
 
 
+@app.route('/get_info', methods=['POST'])
+async def get_info():
+    """
+    Получить информацию по токену можно только в том случае,
+    если пользователь авторизован. Его access_token будет дейсителен.
+    Таким образом проверяется только access_token. 
+    """
+    info = await request.get_json()
+    access_token = info.get('access_token')
+
+
 @app.route('/update_collections_db', methods=['GET'])
 async def update_collections_db():
     '''
@@ -194,6 +206,36 @@ def get_products():
         return jsonify({'coee': 200, 'catalog': catalog})
 
 
+@app.route('/get_shop_products_by_collection', methods=['GET'])
+async def get_products_by_collection():
+    """
+    Получение продуктов по категории напрямую с магазина
+    """
+    info = await request.get_json()
+    collection_id = info['collection_id']
+    return requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': collection_id}).json()
+
+
+@app.route('/get_shop_collections_by_product', methods=['GET'])
+async def get_collections_by_product():
+    """
+    Получение коллекций по указанию ID продукта напрямую из магазина
+    """
+    info = await request.get_json()
+    product_id = info['product_id']
+    return requests.get(INSALES_URL + '/' + 'collects.json', params={'product_id': product_id}).json()
+
+
+@app.route('/get_shop_collection', methods=['GET'])
+async def get_shop_collection():
+    """
+    Получение полной информации о коллекции напрямую из магазина
+    """
+    info = await request.get_json()
+    collection_id = info['collection_id']
+    return requests.get(INSALES_URL + '/' + 'collections/{}.json'.format(collection_id)).json()
+
+
 @app.route('/db_collections', methods=['GET'])
 async def db_collections():
     """
@@ -228,12 +270,16 @@ async def product_byid():
 
 
 @app.route('/collection_byid', methods=['GET'])
-def collection_byid():
+async def collection_byid():
     """
-    Получение коллекции из БД по ее ID
+    Получение полностью информации о категории по ID
     """
+    info = await request.get_json()
+    collection_id = info['collection_id']
+    result  = await database.get_collection_by_id(collection_id)
+
     return jsonify({
-        'code': 200, 'message': 'Тут будут категории'})
+        'code': 200, 'category': result})
 
 
 @app.route('/collection_bytitle', methods=['GET'])
@@ -282,35 +328,6 @@ async def update_db():
     
     return jsonify({'code': 200,
         'message': 'Проверка'})
-
-@app.route('/get_shop_products_by_collection', methods=['GET'])
-async def get_products_by_collection():
-    """
-    Получение продуктов по категории напрямую с магазина
-    """
-    info = await request.get_json()
-    collection_id = info['collection_id']
-    return requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': collection_id}).json()
-
-
-@app.route('/get_shop_collections_by_product', methods=['GET'])
-async def get_collections_by_product():
-    """
-    Получение коллекций по указанию ID продукта напрямую из магазина
-    """
-    info = await request.get_json()
-    product_id = info['product_id']
-    return requests.get(INSALES_URL + '/' + 'collects.json', params={'product_id': product_id}).json()
-
-
-@app.route('/get_shop_collection', methods=['GET'])
-async def get_shop_collection():
-    """
-    Получение полной информации о коллекции напрямую из магазина
-    """
-    info = await request.get_json()
-    collection_id = info['collection_id']
-    return requests.get(INSALES_URL + '/' + 'collections/{}.json'.format(collection_id)).json()
 
 
 @app.route('/get_all_shop_collections', methods=['GET'])
@@ -371,13 +388,18 @@ async def registration():
                 'phone': info['phone'],
                 'type': 'Client::Individual'
                 }}).json()
+            
+            try:
+                result = await SessionProcessing().create_session(info['email'])
+            except Exception as e:
+                print(e, 'Возникла ошибка при создании новой сессии')
+                pass
 
             return jsonify({
                     'code': 200,
                     'message': 'Пользователь с email: {} успешно зарегистрирован'.format(info['email']),
                     'access_token': result['access_token'],
-                    'refresh_token': result['refresh_token']
-                })
+                    'refresh_token': result['refresh_token']})
         else:
             abort(400)
 
@@ -394,6 +416,12 @@ async def login():
 
             result = await token_process.create_couple(email)
 
+            try:
+                result = await SessionProcessing().create_session(info['email'])
+            except Exception as e:
+                print(e, 'Возникла ошибка при создании новой сессии')
+                pass
+
             return jsonify({
                     'code': 200,
                      'message': 'Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания',
@@ -408,17 +436,6 @@ async def login():
                 })
     else:
         abort(400)
-
-
-@app.route('/get_info', methods=['POST'])
-async def get_info():
-    """
-    Получить информацию по токену можно только в том случае,
-    если пользователь авторизован. Его access_token будет дейсителен.
-    Таким образом проверяется только access_token. 
-    """
-    info = await request.get_json()
-    access_token = info.get('access_token')
 
 
 @app.route('/offer', methods=['POST'])
