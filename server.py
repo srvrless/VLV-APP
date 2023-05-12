@@ -378,13 +378,17 @@ async def registration():
     if request.method == 'POST':
 
         info = await request.get_json()
-        if not all(k in info for k in ('name', 'surname', 'middlename', 'email', 'password', 'city', 'phone')):
+        if not all(k in info for k in ('name', 'email', 'password', 'city')):
             return jsonify({'code': 400, 'message': 'Не хватает аргументов'})
         
-        if await database.registration(info['name'], info['email'], info['password'], info['city'], info['orders'], info['wishlist']):
-            result = await token_process.create_couple(info['email'])
+            
+        result = await database.registration(info['name'], info['email'], info['password'], info['city'], info['orders'], info['wishlist'])
+        if result: pass
+        couple = await token_process.create_couple(info['email'])
+            
             
             # Регистрация нового пользователя в InSales
+        '''
             if result:
                 return requests.post(INSALES_URL + '/' + 'clients.json',json={
             'client': {
@@ -397,20 +401,21 @@ async def registration():
                 'phone': info['phone'],
                 'type': 'Client::Individual'
                 }}).json()
+        '''
             
-            try:
-                result = await SessionProcessing().create_session(info['email'])
-            except Exception as e:
-                print(e, 'Возникла ошибка при создании новой сессии')
-                pass
+        try:
+            _session = await SessionProcessing().create_session(info['email'])
+        except Exception as e:
+            print(e, 'Возникла ошибка при создании новой сессии')
+            pass
 
-            return jsonify({
-                    'code': 200,
-                    'message': 'Пользователь с email: {} успешно зарегистрирован'.format(info['email']),
-                    'access_token': result['access_token'],
-                    'refresh_token': result['refresh_token']})
-        else:
-            abort(400)
+        return jsonify({
+                'code': 200,
+                'message': 'Пользователь с email: {} успешно зарегистрирован'.format(info['email']),
+                'access_token': couple['access_token'],
+                'refresh_token': couple['refresh_token']})
+    else:
+        abort(400)
 
 
 @app.route('/login', methods=['POST'])
@@ -421,28 +426,23 @@ async def login():
         email = info['email']
         password = info['password']
 
-        if await database.login(email, password):
+        result = await database.login(email, password)
+        if result: pass
+        couple = await token_process.create_couple(email)
 
-            result = await token_process.create_couple(email)
+        try:
+            _session = await SessionProcessing().create_session(info['email'])
+        except Exception as e:
+            print(e, 'Возникла ошибка при создании новой сессии')
+            pass
 
-            try:
-                result = await SessionProcessing().create_session(info['email'])
-            except Exception as e:
-                print(e, 'Возникла ошибка при создании новой сессии')
-                pass
-
-            return jsonify({
-                    'code': 200,
-                     'message': 'Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания',
-                    'access_token': result['access_token'],
-                    'refresh_token': result['refresh_token']
-                })
+        return jsonify({
+                'code': 200,
+                'message': 'Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания',
+                'access_token': couple['access_token'],
+                'refresh_token': couple['refresh_token']
+            })
         
-        else: 
-            return jsonify({
-                    'code': 400,
-                    'message': 'Доступ закрыт. Возможно, неправильно введены данные пользователя для входа. Перепроверьте вводимые данные'
-                })
     else:
         abort(400)
 
