@@ -281,7 +281,7 @@ async def collection_byid():
     return jsonify({
         'code': 200, 'category': result})
 
-
+'''
 @app.route('/collection_bytitle', methods=['GET'])
 # Получение товаров из коллекции по названию
 async def collection_bytitle():
@@ -295,7 +295,7 @@ async def collection_bytitle():
                     'message': 'Возможно, нет категории под таким названием. Ошибка: {}'.format(e)})
         
     return jsonify({'code': 200,'catalog': result})
-
+'''
 
 @app.route('/update_db', methods=['GET'])
 # Обноелние / запись пролуктов в БД
@@ -339,8 +339,17 @@ async def get_all_shop_collections():
 
 
 @app.route('/get_db_products_by_collection', methods=['GET'])
-def get_db_products_by_collection():
-    return 
+async def get_db_products_by_collection():
+    """
+    Получение всех товаров из БД по одной коллекции
+    """
+    info = await request.get_json()
+    collection_id = info['collection_id']
+    result = await database.check_collections_from_product(collection_id)
+    return jsonify({
+        'code':200,
+        'message': 'Все товары получены успешно',
+        'catalog': result})
 
 
 @app.route('/send_email', methods=['GET'])

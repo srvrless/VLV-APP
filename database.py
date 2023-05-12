@@ -289,6 +289,18 @@ class Database:
         await conn.close()
         values = [dict(record) for record in records]
         return values
+    
+    async def check_collections_from_product(self, collection_id):
+        product_box = []
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        records = await conn.fetch('''SELECT * FROM products;''')
+        await conn.close()
+        values = [dict(record) for record in records]
+        for v in values:
+            for i in json.loads(v['collection_ids']):
+                if i == collection_id:
+                    product_box.append(v['insales_id'])
+        return product_box
 
     
 

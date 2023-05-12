@@ -30,6 +30,3 @@ class SessionProcessing:
             return
 
 
-
-
-asyncio.run(SessionProcessing().create_session('saltanyuk@icloud.com'))
