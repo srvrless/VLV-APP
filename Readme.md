@@ -1,7 +1,7 @@
 # Install dependencies
-
-pip install -r requirements.
-
+```
+pip install -r requirements
+```
 # Database up
 
 ```
