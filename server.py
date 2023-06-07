@@ -1,110 +1,28 @@
-from quart import Quart
-from quart import jsonify
-from quart import request, abort
+from quart import Quart, jsonify, request, abort
+
 from service import TokenProcess
 from config import INSALES_URL
-from database import Database
-import requests
-from tools import html_parser
-import asyncio
-import requests
-import json
+from db.database import Database
 from email_processing import EmailProcessing
 from sessions_processing import SessionProcessing
+from db.database_updater import DatabaseUpdater
+from insales_api import InsalesApi
 
-
-class DatabaseProcess:
-    def __init__(self):
-        return
-    
-    async def get_product_list(self, collection_id):
-        # Получение полного списка продуктов по данной категории
-        return requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': str(collection_id)}).json() #?
-    
-    async def product_listing(self, collection_id): # ollection_id=20742662
-        # Получение информации по данному продукту в очереди
-        info = await self.get_product_list(collection_id)
-        for i in info:
-            try:
-                product_information = requests.get(INSALES_URL + '/' + 'products/{}.json'.format(i['product_id'])).json()
-                result = await self.product_updating(product_information)
-                if result: pass # ? else... 
-            except Exception as e:
-                print(e)
-                continue
-        return True
-
-    async def product_updating(self, product_information):
-
-        material = '' 
-        colour = ''
-        brand = ''
-        size = ''
-        image = ''
-
-        images = product_information['images']
-        for im in images:
-            image = im['original_url']
-            break
-        
-        for t in product_information['characteristics']:
-            # Материал
-            if t['property_id'] == 40865551: material = t['title']
-            # Цвет
-            elif t['property_id'] == 37399009: colour = t['title']
-            # Бренд
-            elif t['property_id'] == 35926723: brand = t['title']
-            #? Размер
-            elif t['property_id'] == 35932191: size = t['title']
-                #elif t['property_id'] == 35934755: price = t['title']
-                
-        if len(size) != 0 or size != '' or size is not None:
-            if type(size) != list:
-                size = size.split(',')
-                size = [s.replace(' ', '') for s in size]
-                try: size = [float(s) for s in size]
-                except: pass
-
-                
-                #lol = json.dumps(info['collections_ids'])
-                #print(type(lol))
-        
-        
-        product_card = {
-                'available': str(product_information['available']),
-                'category_id': product_information['category_id'],
-                'collections_ids': json.dumps(product_information['collections_ids']),
-                'material': material, 'colour': colour,
-                'brand': brand, 'size': size,
-                'price': int(float(product_information['variants'][0]['base_price'])), 
-                'description': html_parser(product_information['description']),
-                'insales_id': product_information['id'], 'title': product_information['title'],
-                'variants': [ii['id'] for ii in product_information['variants']],
-                'images': image
-                        }
-        result = await Database().update_products(product_card)
-
-    def between_callback(self, collection_id):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        loop.run_until_complete(self.product_listing(collection_id))
-        loop.close()
-
-
+from tools import json_args, query_args, token_required, Translitor
+import http_code
 
 #TODO Для создания повышенного уровня защиты, необходимо внедрить проверку на пользователя: Есть ли этот пользователь в БД или нет.
-# TODO Добавлеие новых баннеров в БД
-# TODO Вывод товаров из БД, чтобы их отображать на странице
+#TODO Добавлеие новых баннеров в БД
+#TODO Вывод товаров из БД, чтобы их отображать на странице
 #TODO Проверка, чтобы администратор был авторизован: Защита от перехода поперек пользовательского сценария
 #TODO Добавление нового баннера / редактирование тех баннеров, которые есть сейчас на странице
-# TODO: Вставить в программный код места, где создаются новые сессии и они управляются
-# TODO: Сделать автоматическую выдачу токена при проверке рефреш, если рефреш еще действует (сейчас в ручном)
-# TODO: В базу данных каждоо пользователя добавить поле "История заказов".
+#TODO: Вставить в программный код места, где создаются новые сессии и они управляются
+#TODO: Сделать автоматическую выдачу токена при проверке рефреш, если рефреш еще действует (сейчас в ручном)
+#TODO: В базу данных каждоо пользователя добавить поле "История заказов".
     ##? Добавить отдельный параметр вывода заказов, которые были когда-либо связаны с профилем (отдельный счетчик)
     ##? Вставить в программный код все, что касается истории заказов пользователя
 
-# TODO: Каждому пользователю добавить поле, в котором будет содердаться информация о текущих его заказах.
+#TODO: Каждому пользователю добавить поле, в котором будет содердаться информация о текущих его заказах.
     # Это должна быть отдельная таблица, в которой все это будет обрабатываться. Чтобы всю 
     # информацию можно было бы оттуда брать. И выдвать на экране
 
@@ -115,385 +33,431 @@ class DatabaseProcess:
 #TODO: Сделать таблицу отдельную, в которой будет список магазинов
 #TODO Нужно нажать на кнопку на почте, чтобы ее подтвердить. 
 #TODO Записать в БД статус электронной почты (код)
-# TODO Отправка уведомдения о том, что код был неверный (если его ввели неверно)
+#TODO Отправка уведомдения о том, что код был неверный (если его ввели неверно)
+
+#TODO Добавить в получении товаров возможность отдачи товаров постепенно. Добавить такую возможность для всего, выделить для абстракт
 
 
 app = Quart(__name__)
 database = Database()
+database_updater = DatabaseUpdater(database)
 token_process = TokenProcess()
-
+insales_api = InsalesApi()
+translitor = Translitor(database)
+# translitor.init()
 
 
 @app.route('/', methods=['GET'])
 def index():
-    '''
-    Тестирование сервера (связи с сервером).
-    Получение конфигурации сервера
-    '''
+    """ Тестирование сервера (связи с сервером). Получение конфигурации сервера """
     return jsonify({
         'code': 200, 'message': 'Конфигурация нормальная. Сервер ждет команд'})
 
+# ==== clients ====
 
-@app.route('/shop_collections', methods=['GET'])
-async def shop_collections():
-    '''
-    Получение коллекций напрямую из магазина
-    '''
-    info = requests.get(INSALES_URL + '/' + 'collections.json').json()
-    return jsonify({'code': 200, 'catalog': info})
+@app.route('/get_client_info', methods=['GET'])
+@token_required
+async def get_client_info(email):
+    """ 
+    Получить информацию по токену можно только в том случае,
+    если пользователь авторизован. Его access_token будет действителен.
+    Таким образом проверяется только access_token. 
+    """
+    try:
+        result = await database.get_client_by_email(email)
+        
+        return jsonify({
+            "client": result
+        }), http_code.ok
+    except Exception as e:
+        return jsonify({
+            "message": "Ошибка при обработке",
+            "error": str(e)
+        }), http_code.internal_server_error
 
+
+# ==== authorization ====
 
 @app.route('/token_couple', methods=['POST'])
 async def token_couple():
-    '''
+    """
     Получение пары токенов для email
     # TODO: сделать метод проверки достоверности access для защиты данного метода
     #? Если токен действителен, то отправлять сразу пару
-    '''
+    """
     info = await request.get_json()
     result = await token_process.create_couple(info.get('email'))
     return jsonify({
         'code': 200,
         'access_token': result['access_token'],
-        'refresh_token': result['refresh_token']})
-
-
-@app.route('/get_info', methods=['POST'])
-async def get_info():
-    """
-    Получить информацию по токену можно только в том случае,
-    если пользователь авторизован. Его access_token будет дейсителен.
-    Таким образом проверяется только access_token. 
-    """
-    info = await request.get_json()
-    access_token = info.get('access_token')
-
-
-@app.route('/update_collections_db', methods=['GET'])
-async def update_collections_db():
-    '''
-    Обновление всех коллекций в БД
-    # TODO: Почистить описание коллекций от различного рода "HTML - мусора"
-    '''
-    info = requests.get(INSALES_URL + '/' + 'collections.json').json()
-    for i in info:
-        result = await database.add_collections(i['id'], i['parent_id'], i['title'], str(i['description']))
-        if result: pass # Выполнение функции
-        else: abort(405) #? Не получилось добавить ту или иную коллекцию
-        
-    return jsonify({'code': 200, 'message': 'Все коллекции успешно добавлены'})
-
-         
-@app.route('/shop_products', methods=['GET'])
-def get_products():
-    '''
-    Получение всех продуктов из БД
-    '''
-    catalog = []
-    page = 0
-    try:
-        while True:
-            page += 1
-            catalog.append(requests.get(INSALES_URL + '/' + 'products.json', params={'page_sise': 100, 'page': page}).json())
-
-    except Exception as e:
-        return jsonify({
-            'code': 201,
-            'message': 'Функция отработала по прерыванию количества страниц. Каталог товаров передан. Ответ: {}'.format(e),
-            'catalog': catalog})
-
-    finally:
-        return jsonify({'coee': 200, 'catalog': catalog})
-
-
-@app.route('/get_shop_products_by_collection', methods=['GET'])
-async def get_products_by_collection():
-    """
-    Получение продуктов по категории напрямую с магазина
-    """
-    info = await request.get_json()
-    collection_id = info['collection_id']
-    return requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': collection_id}).json()
-
-
-@app.route('/get_shop_collections_by_product', methods=['GET'])
-async def get_collections_by_product():
-    """
-    Получение коллекций по указанию ID продукта напрямую из магазина
-    """
-    info = await request.get_json()
-    product_id = info['product_id']
-    return requests.get(INSALES_URL + '/' + 'collects.json', params={'product_id': product_id}).json()
-
-
-@app.route('/get_shop_collection', methods=['GET'])
-async def get_shop_collection():
-    """
-    Получение полной информации о коллекции напрямую из магазина
-    """
-    info = await request.get_json()
-    collection_id = info['collection_id']
-    return requests.get(INSALES_URL + '/' + 'collections/{}.json'.format(collection_id)).json()
-
-
-@app.route('/db_collections', methods=['GET'])
-async def db_collections():
-    """
-    Получение коллекций из БД
-    """
-    result = await database.get_all_collections()
-    return jsonify({'code': 200, 'message': result})
-
-
-@app.route('/db_products', methods=['GET'])
-async def db_products():
-    """
-    Получение всех продуктов из БД
-    """
-    result = await database.get_product_list()
-    return jsonify({'code': 200, 'message': result})
-
-
-@app.route('/product_byid', methods=['GET'])
-async def product_byid():
-    """
-    Получение информации о продукте из БД по его ID (Insales ID)
-    """
-    info = await request.get_json()
-    insales_id = info['insales_id']
-    product_information = await database.get_product_from_db_byid(insales_id)
-    #info_id, info_title = await database.get_category_title_and_id_by_product_id(product_information['insales_id'])
-        
-    return jsonify({
-        'code':200, 'product_info': product_information})
-        #'category': info_title, 'category_id': info_id})
-
-
-@app.route('/collection_byid', methods=['GET'])
-async def collection_byid():
-    """
-    Получение полностью информации о категории по ID
-    """
-    info = await request.get_json()
-    collection_id = info['collection_id']
-    result  = await database.get_collection_by_id(collection_id)
-
-    return jsonify({
-        'code': 200, 'category': result})
-
-'''
-@app.route('/collection_bytitle', methods=['GET'])
-# Получение товаров из коллекции по названию
-async def collection_bytitle():
-    info = await request.get_json()
-    category = info['category']
-
-    try:
-        result = await database.get_all_products_from_category_title(category)
-    except Exception as e: return jsonify({
-                    'code': 403,
-                    'message': 'Возможно, нет категории под таким названием. Ошибка: {}'.format(e)})
-        
-    return jsonify({'code': 200,'catalog': result})
-'''
-
-@app.route('/update_db', methods=['GET'])
-# Обноелние / запись пролуктов в БД
-async def update_db():
-    info = requests.get(INSALES_URL + '/' + 'collections.json').json()
-    for i in info:
-        result = await database.add_collections(i['id'], i['parent_id'], i['title'], str(i['description']))
-        if result: continue
-        else: return jsonify({'code': 400,'message':'Ошибка в добавлении категории в БД'})
-    print('Все коллекции в БД обновлены. Старт заполнения товаров')
-    
-    collections = await database.get_collections_id_from_db()    
-    collections = [coll['insales_id'] for coll in collections]
-
-    '''
-    for coll in collections:
-        print(coll)
-        t = threading.Thread(target=DatabaseProcess().between_callback, args=(coll,))
-        t.start()
-        print('Поток для {} категории запущен'.format(coll))
-
-    return jsonify({'code': 200,
-        'message': 'Проверка'})
-    '''
-
-    for coll in collections:
-        result = await DatabaseProcess().product_listing(coll)
-        if result: pass
-        print('Добавлено')
-    
-    return jsonify({'code': 200,
-        'message': 'Проверка'})
-
-
-@app.route('/get_all_shop_collections', methods=['GET'])
-async def get_all_shop_collections():
-    """
-    Получение всех коллекций из магазина напрямую
-    """
-    return requests.get(INSALES_URL + '/' + 'collections.json').json()
-
-
-@app.route('/get_db_products_by_collection', methods=['GET'])
-async def get_db_products_by_collection():
-    """
-    Получение всех товаров из БД по одной коллекции
-    """
-    info = await request.get_json()
-    collection_id = info['collection_id']
-    result = await database.check_collections_from_product(collection_id)
-    return jsonify({
-        'code':200,
-        'message': 'Все товары получены успешно',
-        'catalog': result})
-
-
-@app.route('/send_email', methods=['GET'])
-async def email_confirm():
-    '''
-    Подтверждение электронной почты. Если код, отправленный и введенный совпадают, то пользователь может выполнить регистрацию.
-    Для повторного запроса вызывается тот же самый метод. 
-    '''
-    info = await request.get_json()
-    email_aim = info['email']
-
-    result = await EmailProcessing().send_email(email_aim)
-    return jsonify({
-        'code': 200,
-        'message': 'Код успешно отправлен {}'.format(email_aim),
-        'verification_code': result 
+        'refresh_token': result['refresh_token']
     })
 
 
-@app.route('/registration', methods=['POST'])
-async def registration(): 
+@app.route('/send_email', methods=['GET'])
+@query_args(required="email")
+async def email_confirm():
+    """ 
+    Подтверждение электронной почты. Если код, отправленный и введенный совпадают, то пользователь может выполнить регистрацию.
+    Для повторного запроса вызывается тот же самый метод. 
     """
-    Регистрация производися уже непосредственно после того, как почта пользователя была подтверждена.
-    Вначале переменные хранятся локально, чтобы затем их передать в данный запрос.
+    email_aim = request.args.get("email", type=str)
+
+    result = await EmailProcessing().send_email(email_aim)
+    return jsonify({
+        "message": "Код успешно отправлен на почту {}".format(email_aim),
+        "verification_code": result 
+    }), http_code.ok
+
+
+@app.route('/guest_login', methods=['GET'])
+@query_args(required="email")
+async def guest_login():
+    """ 
+    Гостевой вход. Требуется только email. В базе сохраняется как гостевой аккаунт, 
+    в перспективе с него же можно будет зайти даже на другом устройстве.
+    В insales ничего не сохраняется 
     """
-    if request.method == 'POST':
+    email = request.args.get("email", type=str)
+    result = await database.guest_login(email)
 
-        info = await request.get_json()
-        if not all(k in info for k in ('name', 'email', 'password', 'city')):
-            return jsonify({'code': 400, 'message': 'Не хватает аргументов'})
-        
-            
-        result = await database.registration(info['name'], info['email'], info['password'], info['city'], info['orders'], info['wishlist'])
-        if result: pass
-        couple = await token_process.create_couple(info['email'])
-            
-            
-            # Регистрация нового пользователя в InSales
-        '''
-            if result:
-                return requests.post(INSALES_URL + '/' + 'clients.json',json={
-            'client': {
-                'name': info['name'],
-                'surname': info['surname'],
-                'middlename': info['middlename'],
-                'registered': True,
-                'email': info['email'],
-                'password': info['password'],
-                'phone': info['phone'],
-                'type': 'Client::Individual'
-                }}).json()
-        '''
-            
-        try:
-            _session = await SessionProcessing().create_session(info['email'])
-        except Exception as e:
-            print(e, 'Возникла ошибка при создании новой сессии')
-            pass
-
-        return jsonify({
-                'code': 200,
-                'message': 'Пользователь с email: {} успешно зарегистрирован'.format(info['email']),
-                'access_token': couple['access_token'],
-                'refresh_token': couple['refresh_token']})
-    else:
-        abort(400)
-
-
-@app.route('/login', methods=['POST'])
-async def login():
-
-    if request.method == 'POST':
-        info = await request.get_json()
-        email = info['email']
-        password = info['password']
-
-        result = await database.login(email, password)
-        if result: pass
+    if result["is_guest"]:
         couple = await token_process.create_couple(email)
 
-        try:
-            _session = await SessionProcessing().create_session(info['email'])
-        except Exception as e:
-            print(e, 'Возникла ошибка при создании новой сессии')
-            pass
-
-        return jsonify({
-                'code': 200,
-                'message': 'Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания',
-                'access_token': couple['access_token'],
-                'refresh_token': couple['refresh_token']
-            })
-        
+        result["access_token"] = couple["access_token"]
+        result["refresh_token"] = couple["refresh_token"]
+        return jsonify(result), http_code.ok
     else:
-        abort(400)
+        result["access_token"] = None
+        result["refresh_token"] = None
+        return jsonify(result), http_code.forbidden
+
+
+# TODO добавить регистрацию в insales
+@app.route('/registration', methods=['POST'])
+@json_args(required=("name", "surname", "phone", "email", "password"), possible="birth_date")
+async def registration(): 
+    """
+    Регистрация производится уже непосредственно после того, как почта пользователя была подтверждена.
+    Вначале переменные хранятся локально, чтобы затем их передать в данный запрос.
+    """
+    info = await request.get_json()
+
+    name, surname, phone, email, password = info["name"], info["surname"], info["phone"], info["email"], info["password"]
+    birth_date = info["birth_date"] if "birth_date" in info else None
+    result = await database.registration(name, surname, phone, email, birth_date, password)
+    if not result:
+        return jsonify({
+            'message': f"Пользователь с email {info['email']} уже зарегистрирован"
+        }), http_code.forbidden
+
+    couple = await token_process.create_couple(info['email'])
+        
+        # Регистрация нового пользователя в InSales
+    """
+        if result:
+            return requests.post(INSALES_URL + '/' + 'clients.json',json={
+        'client': {
+            'name': info['name'],
+            'surname': info['surname'],
+            'middlename': info['middlename'],
+            'registered': True,
+            'email': info['email'],
+            'password': info['password'],
+            'phone': info['phone'],
+            'type': 'Client::Individual'
+            }}).json()
+    """
+        
+    try:
+        _session = await SessionProcessing().create_session(info['email'])
+    except Exception as e:
+        print(e, 'Возникла ошибка при создании новой сессии')
+        pass
+
+    return jsonify({
+        "message": "Пользователь с email {} успешно зарегистрирован".format(info["email"]),
+        "access_token": couple["access_token"],
+        "refresh_token": couple["refresh_token"]
+    }), http_code.ok
+
+
+# TODO добавить обновление последних пользователей, вдруг человек логинится, а регистрация была на сайте 5 минут назад
+@app.route('/login', methods=['POST'])
+@json_args(required=("email", "password"))
+async def login():
+    """ Метод, осуществляющий логин пользователя. Логин идет через insales """
+    info = await request.get_json()
+    email = info["email"]
+    password = info["password"]
+
+    result = await insales_api.login(email, password)
+    if not result:
+        return jsonify({
+            "message": "Неправильные логин или пароль",
+        }), http_code.forbidden
+    
+    couple = await token_process.create_couple(email)
+
+    try:
+        _session = await SessionProcessing().create_session(info["email"])
+    except Exception as e:
+        print(e, "Возникла ошибка при создании новой сессии")
+        pass
+
+    return jsonify({
+        "message": "Авторизация успешна. Для пользователя была сформирована новая пара токенов для обслуживания",
+        "access_token": couple["access_token"],
+        "refresh_token": couple["refresh_token"]
+    }), http_code.ok
+
+
+# ==== categories ====
+
+@app.route('/get_category_by_id', methods=['GET'])
+@query_args(required="id")
+async def get_category_by_id():
+    """ Получение категории по id """
+    id = request.args.get("id", type=int)
+    result = await database.get_category_by_id(id)
+    return jsonify({
+        "category": result,
+    }), http_code.ok
+
+
+@app.route('/get_category_by_title', methods=['GET'])
+@query_args(required="title")
+async def get_category_by_title():
+    """ Получение категории по title """
+    title = request.args.get("title", type=str)
+    result = await database.get_category_by_title(title)
+    return jsonify({
+        "category": result,
+    }), http_code.ok
+
+
+@app.route('/get_categories', methods=['GET'])
+@query_args(possible="excluded_titles[]")
+async def get_categories():
+    """ Получение категории по title """
+    excluded_titles = request.args.getlist("excluded_titles[]", type=str)
+    result = await database.get_categories(excluded_titles)
+    return jsonify({
+        "categories": result,
+    }), http_code.ok
+
+
+# ==== collections ====
+
+@app.route('/get_collection_by_id', methods=['GET'])
+@query_args(required="id")
+async def get_collection_by_id():
+    """ Получение категории по id """
+    id = request.args.get("id", type=int)
+    result = await database.get_collection_by_id(id)
+    return jsonify({
+        "collection": result,
+    }), http_code.ok
+
+
+@app.route('/get_collection_by_title', methods=['GET'])
+@query_args(required="title")
+async def get_collection_by_title():
+    """ Получение категории по title """
+    title = request.args.get("title", type=str)
+    result = await database.get_collection_by_title(title)
+    return jsonify({
+        "collection": result,
+    }), http_code.ok
+
+
+@app.route('/get_collections', methods=['GET'])
+@query_args(possible="excluded_titles[]")
+async def get_collections():
+    """ Получение категории по title """
+    excluded_titles = request.args.getlist("excluded_titles[]", type=str)
+    result = await database.get_collections(excluded_titles)
+    return jsonify({
+        "collections": result,
+    }), http_code.ok
+
+
+# ==== products ====
+
+@app.route('/get_filters', methods=['GET'])
+@query_args(possible=("min_price", "max_price", "collection_ids[]", "category_ids[]", "options[]"))
+async def get_filters():
+    """ Получить, какие есть доступные фильтры при даннных ограничениях """
+    min_price = request.args.get("min_price", None, type=int)
+    max_price = request.args.get("max_price", None, type=int)
+
+    collection_ids = request.args.getlist("collection_ids[]", type=int)
+    category_ids = request.args.getlist("category_ids[]", type=int)
+    options = request.args.getlist("options[]", type=str)
+    options = [translitor.option_from_eng_to_ru(o) for o in options]
+
+    filters = await database.get_products_filters(min_price, max_price, collection_ids, category_ids, options)
+
+    for key in list(filters.keys()):
+        if translitor.is_in_ru_titles(key):
+            temp_data = filters[key]
+            del filters[key]
+            filters[translitor.ru_to_eng(key)] = temp_data
+            print(translitor.ru_to_eng(key))
+
+    return jsonify(
+        filters
+    ), http_code.ok
+
+
+@app.route('/get_product_by_id', methods=['GET'])
+@query_args(required="id")
+async def get_product_by_id():
+    """ Получение категории по id """
+    id = request.args.get("id", type=int)
+    result = await database.get_product_by_id(id)
+    return jsonify({
+        "product": result,
+    }), http_code.ok
+
+
+@app.route('/get_products', methods=['GET'])
+@query_args(required=("page", "per_page"), possible=("order_by", "min_price", "max_price", "collection_ids[]", "category_ids[]", "options[]"))
+async def get_products():
+    """ 
+        Получение товаров по фильтрам и с сортировкой. Текстовые поля регистр-зависимы
+        -required:
+    page:               номер страницы. Нумерация идет с единицы
+    per_page:           количество товаров на странице
+
+        -possible:
+    order_by:           колонка, по которой вести сортировку. Если поставить минус перед именем, то будет сортировка по убыванию (например, "title" и "-title").
+                        Доступные варианты: "price", "created_at", "title", "-price", "-created_at", "-title"
+    min_price:          целое число - фильтр по минимальной цене
+    max_price:          целое число - фильтр по максимальной цене
+    collection_ids[]    список из id коллекций
+    category_ids[]      список из id категорий
+    options[]           список фильтрующих опций. Записывать через пробел "имя значений", например, "Цвет Золото", "Бренд VIVA LA VIKA", "Size 16"
+    """
+    page = request.args.get("page", type=int)
+    per_page = request.args.get("per_page", type=int)
+    if page <= 0:
+        return jsonify({
+            "message": "page должен быть больше 0",
+        }), http_code.bad_request
+
+    possible_order = ("price", "created_at", "title", "-price", "-created_at", "-title")
+    order_by = request.args.get("order_by", None, type=str)
+    if order_by not in possible_order and order_by is not None:
+        return jsonify({
+            "message": f"order может иметь только одно из следущих значений: {', '.join(possible_order)}",
+        }), http_code.bad_request
+
+    min_price = request.args.get("min_price", None, type=int)
+    max_price = request.args.get("max_price", None, type=int)
+
+    collection_ids = request.args.getlist("collection_ids[]", type=int)
+    category_ids = request.args.getlist("category_ids[]", type=int)
+    options = request.args.getlist("options[]", type=str)
+    options = [translitor.option_from_eng_to_ru(o) for o in options]
+
+    result = await database.get_products(order_by, page, per_page, min_price, max_price, collection_ids, category_ids, options)
+    info = await database.get_products_filters(min_price, max_price, collection_ids, category_ids, options)
+
+    for key in list(info.keys()):
+        if translitor.is_in_ru_titles(key):
+            temp_data = info[key]
+            del info[key]
+            info[translitor.ru_to_eng(key)] = temp_data
+            print(translitor.ru_to_eng(key))
+        
+    return jsonify({
+        "products": result
+    }), http_code.ok
+
 
 
 @app.route('/offer', methods=['POST'])
-# Оформление заказа черех мобильное приложение
+# Оформление заказа через мобильное приложение
 def offer():
     return jsonify({
         'code': 200, 'message': 'Тут будут категории'
         })
 
-
 @app.route('/add_towishlist', methods=['POST'])
-# Добавление товара в вишлист
-def add_towishlist():
+async def add_towishlist():
+    """ Добавление товара в вишлист. Если товар уже находится в вишлисте, ничего не происходит """
+    info = await request.get_json()
+    email = info['email']
+    insales_id = info['insales_id']
+
+    result  = await database.add_to_wishlist(email, insales_id)
+
+    if result:
+        message = 'Товар успешно добавление в вишлист'
+    else:
+        message = 'Товар уже был в вишлисте'
+    
     return jsonify({
-        'code': 200, 'message': 'Тут будут категории'
+        'code': 200, 'message': message
         })
 
 
 @app.route('/add_tocart', methods=['POST'])
-# Добавление товара в вишлист
-def add_tocart():
+async def add_tocart():
+    """ Добавление товара в корзину. Если товар уже находится в корзине, ничего не происходит """
     return jsonify({
         'code': 200, 'message': 'Тут будут категории'
         })
 
 
 @app.route('/delete_fromwishlist', methods=['POST'])
-# Удаление товара из вишлиста
-def delete_fromwishlist():
+async def delete_fromwishlist():
+    """ Удаление товара из вишлиста. Если товара не было, то ничего не происходит """
+    info = await request.get_json()
+    email = info['email']
+    insales_id = info['insales_id']
+
+    result  = await database.delete_from_wishlist(email, insales_id)
+
+    if result:
+        message = 'Товар успешно удален из вишлиста'
+    else:
+        message = 'Товара не было в вишлисте. Ничего не удалено'
+    
     return jsonify({
-        'code': 200, 'message': 'Тут будут категории'
+        'code': 200, 'message': message
         })
 
 
 @app.route('/delete_fromcart', methods=['POST'])
-# Удаление товара из корзины
 def delete_fromcart():
     return jsonify({
         'code': 200, 'message': 'Тут будут категории'
         })
+    
 
-
-@app.route('/get_fromwishlist', methods=['POST'])
-# Получение товара из вишлиста
-def get_fromwishlist():
-    return jsonify({
-        'code': 200, 'message': 'Тут будут категории'
+@app.route('/get_products_fromwishlist', methods=['GET'])
+async def get_fromwishlist():
+    """ Получение всех товаров из вишлиста """
+    try:
+        info = await request.get_json()
+        email = info['email']
+        result = await database.get_wishlist_products(email)
+        return jsonify({
+            'code': 200,
+            'message': result
+            })
+    except KeyError:
+        return jsonify({
+            'code': 400,
+            'message': 'Invalid request data. Email field is missing.'
         })
-
+    except TypeError as e:
+        return jsonify({
+            'code': 500,
+            'message': str(e)
+        })
 
 @app.route('/get_fromcart', methods=['POST'])
 # Получение товара из вишлиста
@@ -503,6 +467,32 @@ def get_fromcart():
         })
 
 
+# === Error handlers ===
 
+@app.errorhandler(403)
+def forbidden(e):
+    return jsonify({
+        "message": "Запрещено",
+        "error": str(e)
+    }), http_code.forbidden
+
+
+@app.errorhandler(404)
+def forbidden(e):
+    return jsonify({
+        "message": "Эндпоинт не найден",
+        "error": str(e)
+    }), http_code.not_found
+
+@app.errorhandler(500)
+def forbidden(e):
+    return jsonify({
+        "message": "Серверная ошибка",
+        "error": str(e)
+    }), http_code.not_found
+
+
+
+# TODO Поменять ip адрес на 0.0.0.0
 if __name__ == '__main__':
     app.run(host="localhost", debug=True, port=8080, threaded=True)

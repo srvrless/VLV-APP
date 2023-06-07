@@ -2,17 +2,11 @@ from quart import Quart
 from quart import render_template
 from quart import request, jsonify
 
-
-
 app = Quart(__name__) 
-
 
 @app.route('/admin_products_list', methods=['GET', 'POST'])
 async def admin_produts_list():
     return render_template('products_page.html')
-
-
-
 
 @app.route('/admin_test', methods=['GET', 'POST'])
 async def test_admin():
