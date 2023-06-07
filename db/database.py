@@ -18,6 +18,7 @@ class Database:
         self.db_name = config.DATABASE_NAME
         self.dbuser = config.DATABASE_USER
         self.password = config.DATABASE_PASSWORD
+        self.port = config.DATABASE_PORT
         self.is_connected = False
 
     
@@ -133,7 +134,7 @@ class Database:
         return product
 
     
-    async def get_products(self, order_by: str = None, page: int = None, per_page: int = None, min_price: int = None, max_price: int = None, collection_ids: list[int] = [], category_ids: list[int] = [], options: list[str] = []) -> list:
+    async def get_products(self, order_by: str | None, page: int | None, per_page: int | None, min_price: int | None, max_price: int | None, collection_ids: list[int] | list, category_ids: list[int] | list, options: list[str] | list) -> list | None:
         """Функция для выдачи товаров с фильтрами и сортировкой """
         statement = self.statement_sort("SELECT * FROM get_products($1, $2, $3, $4, $5);",
                                    order_by, page, per_page)
@@ -152,7 +153,7 @@ class Database:
     
     async def get_products_filters(self, min_price: int = None, max_price: int = None, collection_ids: list[int] = [], category_ids: list[int] = [], options: list[str] = []) -> dict:
         """Функция для выдачи какие фильтры доступны в данной выборке """
-        statement = "SELECT * FROM get_filter_info_by_product_ids(ARRAY(SELECT id FROM get_products($1, $2, $3, $4, $5)));"
+        statement = "SELECT * FROM get_filter_info_by_product_ids(ARRAY(SELECT id FROM get_products($1::int, $2::int, $3::int[], $4::int[], $5::text[])));"
         values = await self.select_many(statement, min_price, max_price, collection_ids, category_ids, options)
         info = dict()
         for value in values:
@@ -167,6 +168,7 @@ class Database:
         except:
             info["min_and_max_price"] = None
         return info
+
 
     async def update_products(self, products: list):
         """
@@ -293,9 +295,8 @@ class Database:
     
     async def get_collections(self, excluded_titles) -> list:
         """ Функция для получения категории по ее id """
-        values = await self.select_many("SELECT * FROM get_collections($1);", excluded_titles)
+        values = await self.select_many("SELECT * FROM collection")
         return values
-
     async def update_collections(self, collections: list):
         """ Функция для добавления новых коллекций. Если коллекция с таким id есть, то идет обновление ее полей """
         columns = ("id", "parent_id", "title", "description", "position", "is_hidden", "is_smart")
@@ -307,7 +308,7 @@ class Database:
 
     async def connect(self):
         """ Открытие соединения с бд """
-        self.conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        self.conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         self.is_connected = True
 
     async def close_connection(self):
@@ -392,7 +393,7 @@ class Database:
 
     
     async def registration(self, name, surname, phone, email, birth_date, password): # Добавляем нового пользователя магазина
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name, port=self.port)
         records = await conn.fetch('SELECT * FROM customers WHERE email = $1', email)
 
         values = [dict(record) for record in records]
@@ -411,19 +412,19 @@ class Database:
         return True
     
     async def accept_email(self, email): # Добавляем нового пользователя магазина
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name, port=self.port)
         await conn.execute('''UPDATE collections SET email_accept = $1 WHERE email = $2;''', 'Verified', email)
         await conn.close()
         return True
     
     async def accept_phone(self, email): # Добавляем нового пользователя магазина
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name, port=self.port)
         await conn.execute('''UPDATE collections SET phone_accept = $1 WHERE email = $2;''', 'Verified', email)
         await conn.close()
         return True
     
     async def delete_profile(self, email): # Удаление пользователя из БД
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name, port=self.port)
         try:
             await conn.execute('''DELETE from customers WHERE email = $1;''', email)
             await conn.close()
@@ -434,7 +435,7 @@ class Database:
             return False
     
     async def login(self, email, password): 
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name, port=self.port)
         records = await conn.fetch('SELECT password FROM customers WHERE email = $1', email)
         await conn.close()
         values = [dict(record) for record in records]
@@ -452,21 +453,21 @@ class Database:
             return False
     
     async def find_user(self, email):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('SELECT * FROM customers WHERE email = $1', email)
         await conn.close()
         values = [dict(record) for record in records]
         return values[0]
     
     async def get_category_id_by_title(self, title):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('SELECT insales_id FROM collections WHERE title = $1', title)
         await conn.close()
         values = [dict(record) for record in records]
         return values[0]['insales_id']
     
     async def get_category_by_title(self, title):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('SELECT insales_id FROM collections WHERE title = $1', title)
         await conn.close()
         values = [dict(record) for record in records]
@@ -474,7 +475,7 @@ class Database:
         return values[0]
     
     async def get_product_list(self):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('SELECT * FROM products;')
         await conn.close()
         values = [dict(record) for record in records]
@@ -483,14 +484,14 @@ class Database:
         #return values[0]['insales_id']
     
     async def get_all_users(self):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('SELECT * FROM customers;')
         await conn.close()
         values = [dict(record) for record in records]
         return values[0]
     
     async def get_all_collections(self):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('SELECT * FROM collections;')
         await conn.close()
         values = [dict(record) for record in records]
@@ -498,28 +499,28 @@ class Database:
     
     async def get_all_products_from_category_title(self, title): # by title
         category_id = await self.get_category_id_by_title(title) # Выдает insales id
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('''SELECT * FROM products WHERE category_id = $1;''', category_id)
         await conn.close()
         values = [dict(record) for record in records]
         return values
     
     async def get_all_products_from_category_id(self, category_id): # by id
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('''SELECT * FROM products WHERE category_id = $1;''', category_id)
         await conn.close()
         values = [dict(record) for record in records]
         return values
     
     async def get_product_by_title(self, title):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('''SELECT * FROM products WHERE title = $1;''', title)
         await conn.close()
         values = [dict(record) for record in records]
         return values[0]
     
     async def get_category_title_and_id_by_product_id(self, produc_id):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('''SELECT category_id FROM products WHERE insales_id = $1;''', produc_id)
         values_id = [dict(record) for record in records]
         records = await conn.fetch('''SELECT title FROM collections WHERE insales_id = $1;''', int(values_id[0]['category_id']))
@@ -529,13 +530,13 @@ class Database:
 
     
     async def add_collections(self, insales_id, parent_id, title, description):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         await conn.execute('''INSERT INTO collections (insales_id, parent_id, title, description) VALUES ($1, $2, $3, $4);''', insales_id, parent_id, title, description)
         await conn.close()
         return True
     
     async def add_to_wishlist(self, email, insales_id):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         try:
             await conn.execute("""
             INSERT INTO wishlist (customer_id, product_id) VALUES
@@ -549,7 +550,7 @@ class Database:
             conn.close()
     
     async def update_profile_info(self, email, name, surname, middlename, city, username):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         if name != '':
             await conn.execute('''UPDATE customers SET name = $1 WHERE email = $2;''', name, email)
         if surname != '':
@@ -564,19 +565,19 @@ class Database:
         return True
     
     async def update_profile_email(self, email, new_email):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         await conn.execute('''UPDATE customers SET email = $1 WHERE email = $2;''', new_email, email)
         await conn.close()
         return True
     
     async def update_profile_phone(self, email, phone):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         await conn.execute('''UPDATE customers SET phone = $1 WHERE email = $2;''', phone, email)
         await conn.close()
         return True
     
     async def delete_from_wishlist(self, email, insales_id):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch("""
             SELECT COUNT(*) FROM 
                 wishlist w JOIN customers c ON w.customer_id = c.id
@@ -600,7 +601,7 @@ class Database:
 
 
     async def update_products(self, product):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         await conn.execute('''INSERT INTO products 
                                 (id, available, category_id, material, colour, brand, size, price, title, description, variants_id, collections_ids, images)
                               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);''',product['id'], product['available'], product['category_id'],
@@ -620,7 +621,7 @@ class Database:
         '''
     
     async def update_collections(self, insales_id, parent_id, title, description):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         await conn.execute('''INSERT INTO collections (insales_id, parent_id, title, description)
                               VALUES ($1, $2, $3, $4) ON CONFLICT (isales_id) DO
                               UPDATE SET isales_id = $5, parent_id = $6, title = $7, description = $8;''',
@@ -630,21 +631,21 @@ class Database:
         return True
     
     async def add_new_order(self, customer, date, summ):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         await conn.execute('''INSERT INTO orders (customer, date, summ) VALUES ($1, $2, $3);''', customer, date, summ)
         await conn.close()
         print('Information added')
         return True
     
     async def get_all_orders(self):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.execute('''SELECT * FROM orders;''')
         await conn.close()
         values = [dict(record) for record in records]
         return values
     
     async def get_wishlist_products(self, email):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('''SELECT p.id, available, category_id, material, colour, brand, 
                                             size, price, description, insales_id, title, variants_id, collection_ids, images FROM 
                                         wishlist w JOIN customers c ON w.customer_id = c.id AND c.email = $1
@@ -654,7 +655,7 @@ class Database:
         return values
     
     async def get_product_from_db_byid(self, product_id):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('''SELECT * FROM products WHERE id = $1;''', product_id)
         await conn.close()
         values = [dict(record) for record in records]
@@ -662,21 +663,21 @@ class Database:
         return values[0]
     
     async def get_collections_id_from_db(self):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
-        records = await conn.fetch('''SELECT insales_id FROM collections;''')
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name, port=self.port)
+        records = await conn.fetch("SELECT * FROM collection")
         await conn.close()
         values = [dict(record) for record in records]
         return values
     
     async def get_collection_by_id(self, collection_id):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('''SELECT * FROM collections WHERE insales_id = $1;''', collection_id)
         await conn.close()
         values = [dict(record) for record in records]
         return values[0]
     
     async def check_collections_from_product(self, collection_id):
-        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name)
+        conn = await asyncpg.connect(host=self.host, user=self.dbuser, password=self.password, database=self.db_name,port=self.port)
         records = await conn.fetch('''SELECT * FROM products WHERE $1 = ANY(collections_ids)''', collection_id)
         await conn.close()
         values = [dict(record) for record in records]
@@ -690,7 +691,9 @@ class Database:
     #     try:
             
     #     except:
-    #         raise 
+    #         raise   
+
+
         
 
     
