@@ -371,4 +371,87 @@ class SSession:
 
     
 '''
+
+
+
+
+"""
+class DatabaseProcess:
+    def __init__(self):
+        return
     
+    async def get_product_list(self, collection_id):
+        # Получение полного списка продуктов по данной категории
+        return requests.get(INSALES_URL + '/' + 'collects.json', params={'collection_id': str(collection_id)}).json() #?
+    
+    async def product_listing(self, collection_id): # ollection_id=20742662
+        # Получение информации по данному продукту в очереди
+        info = await self.get_product_list(collection_id)
+        for i in info:
+            try:
+                product_information = requests.get(INSALES_URL + '/' + 'products/{}.json'.format(i['product_id'])).json()
+                result = await self.product_updating(product_information)
+                if result: pass # ? else... 
+            except Exception as e:
+                print(e)
+                continue
+        return True
+
+    async def product_updating(self, product_information):
+
+        material = '' 
+        colour = ''
+        brand = ''
+        size = ''
+        image = ''
+
+        images = product_information['images']
+        for im in images:
+            image = im['original_url']
+            break
+        
+        for t in product_information['characteristics']:
+            # Материал
+            if t['property_id'] == 40865551: material = t['title']
+            # Цвет
+            elif t['property_id'] == 37399009: colour = t['title']
+            # Бренд
+            elif t['property_id'] == 35926723: brand = t['title']
+            #? Размер
+            elif t['property_id'] == 35932191: size = t['title']
+                #elif t['property_id'] == 35934755: price = t['title']
+                
+        if len(size) != 0 or size != '' or size is not None:
+            if type(size) != list:
+                size = size.split(',')
+                size = [s.replace(' ', '') for s in size]
+                try: size = [float(s) for s in size]
+                except: pass
+
+                
+                #lol = json.dumps(info['collections_ids'])
+                #print(type(lol))
+        
+        
+        product_card = {
+                'available': str(product_information['available']),
+                'category_id': product_information['category_id'],
+                'collections_ids': product_information['collections_ids'],
+                'material': material, 'colour': colour,
+                'brand': brand, 'size': size,
+                'price': int(float(product_information['variants'][0]['base_price'])), 
+                'description': html_parser(product_information['description']),
+                'insales_id': product_information['id'], 'title': product_information['title'],
+                'variants': [ii['id'] for ii in product_information['variants']],
+                'images': image
+                        }
+        result = await Database().update_products(product_card)
+
+    def between_callback(self, collection_id):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        loop.run_until_complete(self.product_listing(collection_id))
+        loop.close()
+
+"""

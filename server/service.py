@@ -48,7 +48,7 @@ class TokenProcess:
             refresh_token = await self.encrypt_string(json.dumps({
                 'email': email, 
                 'start_date': datetime.now().isoformat(),
-                'expiration_date': (datetime.now() + timedelta(days=7)).isoformat()
+                'expiration_date': (datetime.now() + timedelta(days=90)).isoformat()
             }))
             refresh_token = refresh_token.decode()
 
@@ -65,12 +65,17 @@ class TokenProcess:
     
         return False
 
+    async def get_info_from_token(self, token):
+        """ Получает токен, возвращает информацию, содержащуюся в нем"""
+        decoded = json.loads(await self.decrypt_string(token))
+        return decoded
+
     async def get_email_from_token(self,token):
         """
         Given an encrypted token string, returns the email from the decrypted token.
         """
-        decoded_token = await self.decrypt_string(token)
-        return decoded_token.split(':')[0]
+        decoded = await self.get_info_from_token(token)
+        return decoded["email"]
 
     async def validate_token(self, token):
         try:
@@ -93,62 +98,63 @@ class TokenProcess:
         access_token = access_token['access_token']
         return {'access_token': access_token, 'refresh_token': refresh_token}
 
-async def create_acess_by_refresh(self, refresh_token): #? Необходимо передавать сюда refresh_token
-    result = await self.validate_token(refresh_token)
-
-    if result('code') == 200:
-        email = await self.email_from_token(refresh_token)
-    return await self.create_token(email, 'access')
-
-async def token_validate_process(result):
-    """
-    Оценка результата проверки: (True / False). Проверяет конкретный ответ от функции проверки
-    """
-    if isinstance(result, bool):
-
-        if result: return jsonify({'code': 200, 'message': 'Authorization method passed successfully'})
-        else: return jsonify({'code': 406, 'message': 'General error while processing user token information'})
-
-    else:
-        code = result.get('code')
-        if code == 401: return jsonify({'code': 405,'message': 'Need to reauthorize to update the pair'
-            })
-        elif code == 201:
-            return jsonify({
-                'code': 405,
-                'message': 'Access with the new access_token generated is required',
-                'new_access_token': result['access_token']
-            })
-        elif code == 203:
-            return jsonify({
-                'code': 405,
-                'message': 'refresh_token is also required to authorize the method'
-            })
-
-async def token_process(self, access_token, refresh_token):
-    """
-    Функця проверки токенов. Передает result к дальнейшей проверки
-    """
-    result = await self.validate_token(access_token) 
-
-    if result is not True:
+    async def create_acess_by_refresh(self, refresh_token): #? Необходимо передавать сюда refresh_token
         result = await self.validate_token(refresh_token)
 
-        if result is not True:
-            return jsonify({
-                    'code': 401,
-                    'message': 'Доступ закрыт. Необходимо авторизоваться повторно для создание новой пары refresh-access'
-                })  
+        if result('code') == 200:
+            email = await self.email_from_token(refresh_token)
+        return await self.create_token(email, 'access')
+
+    async def token_validate_process(self, result):
+        """
+        Оценка результата проверки: (True / False). Проверяет конкретный ответ от функции проверки
+        """
+        if isinstance(result, bool):
+
+            if result: return jsonify({'code': 200, 'message': 'Authorization method passed successfully'})
+            else: return jsonify({'code': 406, 'message': 'General error while processing user token information'})
+
         else:
-            new_access_token = await create_acess_by_refresh(refresh_token)
-            return jsonify({
-                    'code': 201,
-                    'message': 'Рефреш-токен действителен. Необходимо обновить access_token',
-                    'access_token': new_access_token
+            code = result.get('code')
+            if code == 401: return jsonify({'code': 405,'message': 'Need to reauthorize to update the pair'
                 })
-        
-    elif result: return True
-    else:return False
+            elif code == 201:
+                return jsonify({
+                    'code': 405,
+                    'message': 'Access with the new access_token generated is required',
+                    'new_access_token': result['access_token']
+                })
+            elif code == 203:
+                return jsonify({
+                    'code': 405,
+                    'message': 'refresh_token is also required to authorize the method'
+                })
+
+    async def token_process(self, access_token, refresh_token):
+        """
+        Функця проверки токенов. Передает result к дальнейшей проверки
+        """
+        result = await self.validate_token(access_token) 
+
+        if result is not True:
+            result = await self.validate_token(refresh_token)
+
+            if result is not True:
+                return jsonify({
+                        'code': 401,
+                        'message': 'Доступ закрыт. Необходимо авторизоваться повторно для создание новой пары refresh-access'
+                    })  
+            else:
+                new_access_token = await create_acess_by_refresh(refresh_token)
+                return jsonify({
+                        'code': 201,
+                        'message': 'Рефреш-токен действителен. Необходимо обновить access_token',
+                        'access_token': new_access_token
+                    })
+        elif result:
+            return True
+        else:
+            return False
 
 
         

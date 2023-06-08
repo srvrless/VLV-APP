@@ -4,20 +4,16 @@ from config import ADDR_FROM, EMAIL_PASSWORD
 
 
 
-'''
-Working with email
-'''
-
-
 class EmailProcessing:
+    ''' Working with email '''
     def __init__(self):
         self.verification_code = 0
         return
     
     async def email_text(self):
-         code = randint(0, 10000)
-         wrapper = '''Your registration code Code:{}'''.format(code)
-         return wrapper, code
+        code = randint(0, 10000)
+        wrapper = '''Your registration code Code:{}'''.format(code)
+        return wrapper, code
 
     async def send_email(self, email):
         try:
