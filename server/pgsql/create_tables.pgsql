@@ -1,6 +1,4 @@
-
--- DROP TABLE customers;
-
+DROP TABLE customers;
 DROP TABLE client;
 DROP TABLE client_group;
 DROP TABLE address;
@@ -244,72 +242,69 @@ CREATE INDEX idx_client_email ON client(email);
 
 
 
--- CREATE TABLE customers (
---     id BIGSERIAL PRIMARY KEY NOT NULL,
---     name VARCHAR,
---     surname VARCHAR,
---     middlename VARCHAR,
+CREATE TABLE customers (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    name VARCHAR,
+    surname VARCHAR,
+    middlename VARCHAR,
 
---     birth_date VARCHAR,
---     city VARCHAR,
+    birth_date VARCHAR,
+    city VARCHAR,
 
---     email VARCHAR,
---     email_accept VARCHAR,
---     "password" BYTEA,
---     phone VARCHAR,
---     phone_accept VARCHAR,
+    email VARCHAR,
+    email_accept VARCHAR,
+    "password" BYTEA,
+    phone VARCHAR,
+    phone_accept VARCHAR,
 
---     billing_history VARCHAR,
---     wishlist VARCHAR
--- );
-
-
--- CREATE TABLE products (
---     id BIGINT PRIMARY KEY NOT NULL,
---     available VARCHAR,
---     category_id BIGINT,
---     material VARCHAR,
---     colour VARCHAR,
---     brand VARCHAR,
---     size VARCHAR,
---     price DECIMAL(15, 2),
---     title VARCHAR,
---     description TEXT,
---     variants_id BIGINT[],
---     collections_ids BIGINT[],
---     images VARCHAR[]
--- );
+    billing_history VARCHAR,
+    wishlist VARCHAR
+);
 
 
--- CREATE TABLE wishlist (
---     id BIGSERIAL PRIMARY KEY NOT NULL,
---     customer_id BIGINT,
---     product_id BIGINT,
---     CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
---     CONSTRAINT fk_products FOREIGN KEY (product_id) REFERENCES products(id),
---     UNIQUE(customer_id, product_id)
--- );
-
--- CREATE TABLE cart (
---     id BIGSERIAL PRIMARY KEY NOT NULL,
---     customer_id BIGINT,
---     product_id BIGINT,
---     size REAL,
---     variant_id BIGINT,
---     amount BIGINT,
---     CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
---     CONSTRAINT fk_products FOREIGN KEY (product_id) REFERENCES products(id),
---     UNIQUE(customer_id, product_id)
--- );
-
--- CREATE TABLE images (
---     id BIGSERIAL PRIMARY KEY NOT NULL,
---     product_id BIGINT,
---     "position" BIGINT,
---     title VARCHAR,
---     original_url VARCHAR,
---     CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES products(id)
--- );
+CREATE TABLE products (
+    id BIGINT PRIMARY KEY NOT NULL,
+    available VARCHAR,
+    category_id BIGINT,
+    material VARCHAR,
+    colour VARCHAR,
+    brand VARCHAR,
+    size VARCHAR,
+    price DECIMAL(15, 2),
+    title VARCHAR,
+    description TEXT,
+    variants_id BIGINT[],
+    collections_ids BIGINT[],
+    images VARCHAR[]
+);
 
 
+CREATE TABLE wishlist (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    customer_id BIGINT,
+    product_id BIGINT,
+    CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
+    CONSTRAINT fk_products FOREIGN KEY (product_id) REFERENCES products(id),
+    UNIQUE(customer_id, product_id)
+);
 
+CREATE TABLE cart (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    customer_id BIGINT,
+    product_id BIGINT,
+    size REAL,
+    variant_id BIGINT,
+    amount BIGINT,
+    CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
+    CONSTRAINT fk_products FOREIGN KEY (product_id) REFERENCES products(id),
+    UNIQUE(customer_id, product_id)
+);
+
+CREATE TABLE images (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    product_id BIGINT,
+    "position" BIGINT,
+    title VARCHAR,
+    original_url VARCHAR,
+    CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES products(id)
+);

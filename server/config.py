@@ -9,8 +9,8 @@ INSALES_URL = 'https://26c60c2c500a6c6f1af7aa91d11c197c:a5f07ba6e0c4738819d1ba91
 ADDR_FROM = 'kshleigel@yandex.ru'
 EMAIL_PASSWORD = 'OmegaSolarFive-1848'
 
-STATIC_PATH = "static"
-JSON_PATH = "static"
+STATIC_PATH = "server/static"
+JSON_PATH = "server/static"
 
 DATABASE_HOST = os.environ.get('DB_HOST')
 DATABASE_PORT = os.environ.get('DB_PORT')

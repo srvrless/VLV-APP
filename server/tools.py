@@ -1,4 +1,5 @@
 
+import os
 import http_code
 import json 
 import string
@@ -180,15 +181,23 @@ def token_required(f):
 
 async def json_save(file_name: str, json_object: Any) -> None:
     """ Метод для сохранения json объекта в папку со статикой """
+    os.makedirs(JSON_PATH, exist_ok=True)
     with open(JSON_PATH + "/" + file_name, "w") as f:
         json.dump(json_object, f)
 
 
 async def json_load(file_name: str) -> Any:
     """ Метод для загрузки json объекта из папки со статикой """
+    os.makedirs(JSON_PATH, exist_ok=True)
     with open(JSON_PATH + "/" + file_name) as f:
         return json.load(f)
     
+# async def json_save(file_name: str, json_object: Any) -> None:
+#     """ Метод для сохранения json объекта в папку со статикой """
+#     os.makedirs(JSON_PATH, exist_ok=True)
+    
+#     with open(JSON_PATH + "/" + file_name, "w", encoding="utf-8") as f:
+#         json.dump(json_object, f, ensure_ascii=False)
 
 
 

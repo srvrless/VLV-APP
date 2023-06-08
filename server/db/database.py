@@ -1,5 +1,5 @@
-import config
 import asyncpg
+import config
 from service import TokenProcess
 from tools import parse_html, parse_timestamp, parse_quantity_at_warehouses, parse_null_float
 
@@ -7,7 +7,7 @@ token_process = TokenProcess()
 
 # TODO добавить методы для удаления товаров/коллекций
 # TODO добавить метод обновления таблицы поиска товаров
-# TODO продумать логику перевода гостевых аккаунтов в настоящие
+
 
 EXCLUDED_CHARACTERS = {" ", ",", "-", ";"}
 

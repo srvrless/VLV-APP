@@ -1,4 +1,5 @@
 from quart import Quart, jsonify, request, abort
+import requests
 
 from service import TokenProcess
 from config import INSALES_URL
@@ -78,20 +79,20 @@ async def get_client_info(email):
 
 # ==== authorization ====
 
-@app.route('/token_couple', methods=['POST'])
-async def token_couple():
-    """
-    Получение пары токенов для email
-    # TODO: сделать метод проверки достоверности access для защиты данного метода
-    #? Если токен действителен, то отправлять сразу пару
-    """
-    info = await request.get_json()
-    result = await token_process.create_couple(info.get('email'))
-    return jsonify({
-        'code': 200,
-        'access_token': result['access_token'],
-        'refresh_token': result['refresh_token']
-    })
+# @app.route('/token_couple', methods=['POST'])
+# async def token_couple():
+#     """
+#     Получение пары токенов для email
+#     # TODO: сделать метод проверки достоверности access для защиты данного метода
+#     #? Если токен действителен, то отправлять сразу пару
+#     """
+#     info = await request.get_json()
+#     result = await token_process.create_couple(info.get('email'))
+#     return jsonify({
+#         'code': 200,
+#         'access_token': result['access_token'],
+#         'refresh_token': result['refresh_token']
+#     })
 
 
 @app.route('/send_email', methods=['GET'])
@@ -110,7 +111,7 @@ async def email_confirm():
     }), http_code.ok
 
 
-@app.route('/guest_login', methods=['GET'])
+@app.route('/guest_login', methods=['GET', 'POST'])
 @query_args(required="email")
 async def guest_login():
     """ 
@@ -135,7 +136,7 @@ async def guest_login():
 
 # TODO добавить регистрацию в insales
 @app.route('/registration', methods=['POST'])
-@json_args(required=("name", "surname", "phone", "email", "password"), possible="birth_date")
+@json_args(required=("name", "surname", "phone", "email", "password"), possible=("birth_date", "middlename"))
 async def registration(): 
     """
     Регистрация производится уже непосредственно после того, как почта пользователя была подтверждена.
@@ -154,20 +155,20 @@ async def registration():
     couple = await token_process.create_couple(info['email'])
         
         # Регистрация нового пользователя в InSales
-    """
-        if result:
-            return requests.post(INSALES_URL + '/' + 'clients.json',json={
-        'client': {
-            'name': info['name'],
-            'surname': info['surname'],
-            'middlename': info['middlename'],
-            'registered': True,
-            'email': info['email'],
-            'password': info['password'],
-            'phone': info['phone'],
-            'type': 'Client::Individual'
-            }}).json()
-    """
+    
+    if result:
+        return requests.post(INSALES_URL + '/' + 'clients.json',json={
+    'client': {
+        'name': info['name'],
+        'surname': info['surname'],
+        'middlename': info['middlename'],
+        'registered': True,
+        'email': info['email'],
+        'password': info['password'],
+        'phone': info['phone'],
+        'type': 'Client::Individual'
+        }}).json()
+    
         
     try:
         _session = await SessionProcessing().create_session(info['email'])
@@ -466,6 +467,15 @@ def get_fromcart():
         'code': 200, 'message': 'Тут будут категории'
         })
 
+@app.route('/registration', methods=['POST'])
+@query_args(required=("contact_name", "surname"), possible=("password", "password_confirmation", "birth_date", "email", "phone"))
+# Получение товара из вишлиста
+def regist():
+    from insales_api import InsalesApi
+    contact_name = request.args.get("contact_name", None, type=int)
+    surname = request.args.get("surname", None, type=int)
+# ,phone,email,password,password_confirmation,birth_date
+    return InsalesApi.register()
 
 # === Error handlers ===
 
