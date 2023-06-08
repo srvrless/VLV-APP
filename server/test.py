@@ -1,4 +1,5 @@
 import asyncio
+from concurrent.futures import ProcessPoolExecutor
 from db.database import Database
 from db.database_updater import DatabaseUpdater
 from tools import json_save
@@ -14,8 +15,8 @@ database_updater = DatabaseUpdater(database)
 insales_api = InsalesApi()
 
 async def download_json_tasks():
-    collections = await insales_api.get_collections()
-    await json_save("collections.json", collections)
+    # collections = await insales_api.get_collections()
+    # await json_save("collections.json", collections)
     # products = await insales_api.get_all_products()
     # await json_save("products.json", products)
     # categories = await insales_api.get_categories()
@@ -33,23 +34,23 @@ async def download_json_tasks():
     return "success"
 
 async def fill_json_tasks():
-    collections = await database_updater.load_collections_from_json()
-    await database_updater.update_collections(collections)
-    return "success"
+    # collections = await database_updater.load_collections_from_json()
+    # await database_updater.update_collections(collections)
+    
     # categories = await database_updater.load_categories_from_json()
     # await database_updater.update_categories(categories)
 
     # option_names = await database_updater.load_option_names_from_json()
     # await database_updater.update_option_names(option_names)
 
-    # option_values = await database_updater.load_option_values_from_json()
-    # await database_updater.update_option_values(option_values)
-
     # properties = await database_updater.load_properties_from_json()
     # await database_updater.update_properties(properties)
 
-    # products = await database_updater.load_products_from_json()
-    # await database_updater.update_products(products)
+
+    # option_values = await database_updater.load_option_values_from_json()
+    # await database_updater.update_option_values(option_values)
+
+
 
     # await database_updater.update_search_products()
 
@@ -62,12 +63,14 @@ async def fill_json_tasks():
     # clients = await database_updater.load_clients_from_json()
     # await database_updater.update_clients(clients)
 
+    products = await database_updater.load_products_from_json()
+    await database_updater.update_products(products)
+    return "success"
+
 
 # asyncio.run(download_json_tasks())
-# asyncio.run(fill_json_tasks())
+asyncio.run(fill_json_tasks())
 
-result = asyncio.run(download_json_tasks())
-result = asyncio.run(fill_json_tasks())
 # result = asyncio.run(insales_api.register("Евгений", "Токарев", "8(800)555-35-35", "tok736@gmail.com", "00_22_00_At", "00_22_00_At"))
 
-print(result)
+# print(result)
