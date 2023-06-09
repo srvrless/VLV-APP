@@ -1,0 +1,35 @@
+version: "3.9"
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    container_name: VLV-backend-container
+    depends_on:
+      - db
+    env_file:
+      - ${ENV_FILE}
+    networks:
+      - network
+    ports:
+      - ${HOST_BACKEND_PORT}:${BACKEND_PORT}
+
+  db:
+    image: postgres:latest
+    container_name: VLV-database-container
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    networks:
+      - network
+    ports:
+      - 54320:5432
+    volumes:
+      - db_data:/var/lib/postgresql/data
+networks:
+  network:
+    driver: bridge
+
+volumes:
+  db_data:
