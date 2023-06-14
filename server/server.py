@@ -467,15 +467,15 @@ def get_fromcart():
         'code': 200, 'message': 'Тут будут категории'
         })
 
-@app.route('/registration', methods=['POST'])
-@query_args(required=("contact_name", "surname"), possible=("password", "password_confirmation", "birth_date", "email", "phone"))
-# Получение товара из вишлиста
-def regist():
-    from insales_api import InsalesApi
-    contact_name = request.args.get("contact_name", None, type=int)
-    surname = request.args.get("surname", None, type=int)
-# ,phone,email,password,password_confirmation,birth_date
-    return InsalesApi.register()
+# @app.route('/registration', methods=['POST'])
+# @query_args(required=("contact_name", "surname"), possible=("password", "password_confirmation", "birth_date", "email", "phone"))
+# # Получение товара из вишлиста
+# def regist():
+#     from insales_api import InsalesApi
+#     contact_name = request.args.get("contact_name", None, type=int)
+#     surname = request.args.get("surname", None, type=int)
+# # ,phone,email,password,password_confirmation,birth_date
+#     return InsalesApi.register()
 
 # === Error handlers ===
 
@@ -503,6 +503,5 @@ def forbidden(e):
 
 
 
-# TODO Поменять ip адрес на 0.0.0.0
 if __name__ == '__main__':
-    app.run(host="localhost", debug=True, port=8080, threaded=True)
+    app.run(host="0.0.0.0", debug=True, port=8080, threaded=True)

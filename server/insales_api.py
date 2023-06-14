@@ -1,3 +1,5 @@
+import asyncio
+from concurrent.futures import ProcessPoolExecutor
 from config import INSALES_URL
 from tools import async_request_json
 
@@ -6,7 +8,7 @@ from aiohttp import ClientSession
 
 # Количество товаров при обращении к api за раз
 MAX_PRODUCT_PER_PAGE = 250
-MAX_CLIENT_PER_PAGE = 500
+MAX_CLIENT_PER_PAGE = 10
 
 USER_AGENT_VAL = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36"
 
@@ -78,12 +80,12 @@ class InsalesApi:
     async def get_client_groups(self) -> list:
         """Получить список всех групп клиентов"""
         return await async_request_json(INSALES_URL + "/" + "client_groups.json") 
-
+    
     async def get_clients(self) -> list:
         """Получить список всех клиентов"""
         clients = []
         page = 1
-        while True:
+        while page <= MAX_CLIENT_PER_PAGE:
             result = await async_request_json(INSALES_URL + "/" + "clients.json",
                                           params={"page": page, "per_page": MAX_CLIENT_PER_PAGE})
             if len(result) == 0: 
@@ -141,4 +143,3 @@ class InsalesApi:
         """Получить все свойства товаров"""
         return await async_request_json(INSALES_URL + "/" + "properties.json")
         
-
