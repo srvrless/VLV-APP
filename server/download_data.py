@@ -7,12 +7,13 @@ from insales_api import InsalesApi
 import platform
 from tools import Translitor
 
-if platform.system()=='Windows':
+if platform.system() == "Windows":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 database = Database()
 database_updater = DatabaseUpdater(database)
 insales_api = InsalesApi()
+
 
 async def download_json_tasks():
     # collections = await insales_api.get_collections()
@@ -33,44 +34,37 @@ async def download_json_tasks():
     # await json_save("client_groups.json", client_groups)
     return "success"
 
+
 async def fill_json_tasks():
-    # collections = await database_updater.load_collections_from_json()
-    # await database_updater.update_collections(collections)
-    
-    # categories = await database_updater.load_categories_from_json()
-    # await database_updater.update_categories(categories)
+    collections = await database_updater.load_collections_from_json()
+    await database_updater.update_collections(collections)
 
-    # option_names = await database_updater.load_option_names_from_json()
-    # await database_updater.update_option_names(option_names)
+    categories = await database_updater.load_categories_from_json()
+    await database_updater.update_categories(categories)
 
-    # properties = await database_updater.load_properties_from_json()
-    # await database_updater.update_properties(properties)
+    option_names = await database_updater.load_option_names_from_json()
+    await database_updater.update_option_names(option_names)
 
+    properties = await database_updater.load_properties_from_json()
+    await database_updater.update_properties(properties)
 
-    # option_values = await database_updater.load_option_values_from_json()
-    # await database_updater.update_option_values(option_values)
+    option_values = await database_updater.load_option_values_from_json()
+    await database_updater.update_option_values(option_values)
 
+    await database_updater.update_search_products()
 
+    client_groups = await database_updater.load_client_groups_from_json()
+    await database_updater.update_client_groups(client_groups)
 
-    # await database_updater.update_search_products()
+    clients = await database_updater.load_clients_from_json()
+    await database_updater.update_client_addresses(clients)
 
-    # client_groups = await database_updater.load_client_groups_from_json()
-    # await database_updater.update_client_groups(client_groups)
-
-    # clients = await database_updater.load_clients_from_json()
-    # await database_updater.update_client_addresses(clients)
-
-    # clients = await database_updater.load_clients_from_json()
-    # await database_updater.update_clients(clients)
+    clients = await database_updater.load_clients_from_json()
+    await database_updater.update_clients(clients)
 
     products = await database_updater.load_products_from_json()
     await database_updater.update_products(products)
     return "success"
 
 
-# asyncio.run(download_json_tasks())
 asyncio.run(fill_json_tasks())
-
-# result = asyncio.run(insales_api.register("Евгений", "Токарев", "8(800)555-35-35", "tok736@gmail.com", "00_22_00_At", "00_22_00_At"))
-
-# print(result)
